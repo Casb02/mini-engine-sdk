@@ -26,7 +26,7 @@ node bin/create-mini-game.mjs another-game --directory /path/to/engine/games/ano
 node bin/create-mini-game.mjs --help
 ```
 
-The destination must not exist. The CLI rejects unsafe slugs and never overwrites an existing directory.
+The destination must not exist and its final directory name must match the slug, as required by the engine catalog. Slugs use at most 48 lowercase letters, digits and single hyphens, starting with a letter. The CLI rejects unsafe slugs and never overwrites an existing directory.
 
 ## Install the local npm artifact
 

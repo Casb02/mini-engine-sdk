@@ -10,7 +10,7 @@ const run = args => spawnSync(process.execPath, [cli.pathname,...args],{encoding
 test('CLI scaffolds all roles, compatible manifest and parseable browser module', async () => {
   const parent=await mkdtemp(join(tmpdir(),'mini-game-'));
   try {
-    const target=join(parent,'vote');
+    const target=join(parent,'team-vote');
     const result=run(['team-vote','--directory',target]);
     assert.equal(result.status,0,result.stderr);
     const manifest=JSON.parse(await readFile(join(target,'manifest.json'),'utf8'));
@@ -38,9 +38,11 @@ test('CLI refuses traversal, unknown flags, missing directory values and existin
   assert.notEqual(run(['../escape']).status,0);
   assert.notEqual(run(['vote','--force']).status,0);
   assert.notEqual(run(['vote','--directory']).status,0);
+  assert.notEqual(run(['a'.repeat(49)]).status,0);
   const parent=await mkdtemp(join(tmpdir(),'mini-game-'));
   try {
-    const target=join(parent,'existing'); await mkdir(target); await writeFile(join(target,'keep.txt'),'untouched');
+    assert.notEqual(run(['vote','--directory',join(parent,'different-name')]).status,0);
+    const target=join(parent,'vote'); await mkdir(target); await writeFile(join(target,'keep.txt'),'untouched');
     const result=run(['vote','--directory',target]);
     assert.notEqual(result.status,0);
     assert.equal(await readFile(join(target,'keep.txt'),'utf8'),'untouched');

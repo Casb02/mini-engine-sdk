@@ -17,12 +17,13 @@ export interface Snapshot<PublicState = Json, Settings = Record<string, Json>, P
 export interface SettingsProperty {
   type: 'integer' | 'number' | 'string' | 'boolean'; enum?: Json[];
   minimum?: number; maximum?: number; maxLength?: number;
+  title?: string; description?: string; default?: Json;
 }
 export interface Manifest<Settings = Record<string, Json>> {
   id: string; title: string; description: string; version: string;
   min_players: number; max_players: number; has_display: boolean;
   default_settings: Settings;
-  settings_schema: { type: 'object'; properties: Record<string, SettingsProperty>; required?: string[]; additionalProperties: false };
+  settings_schema: { type: 'object'; properties: Record<string, SettingsProperty>; required?: string[]; additionalProperties: false; title?: string; description?: string; default?: Settings };
   runtime?: 'host' | 'server'; host_modes?: HostMode[]; default_host_mode?: HostMode;
 }
 export interface RoomCredentials { code: string; token: string; role: Role; player_id?: string | null; display_token?: string }
