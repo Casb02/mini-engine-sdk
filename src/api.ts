@@ -53,6 +53,9 @@ export class ApiClient {
     return this.call(`${this.roomPath(code)}/info`);
   }
   gameData<T = unknown>(code: string, token: string): Promise<T> { return this.call(`${this.roomPath(code)}/game-data`, { token }); }
+  displayToken(code: string, token: string): Promise<{ token: string }> {
+    return this.call(`${this.roomPath(code)}/display-token`, { method: 'POST', token });
+  }
   register(input: { username: string; password: string; display_name: string }): Promise<AccountSession> {
     return this.call('/accounts/register', { method: 'POST', body: JSON.stringify(input) });
   }

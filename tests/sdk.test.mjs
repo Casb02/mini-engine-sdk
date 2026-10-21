@@ -38,6 +38,10 @@ test('ApiClient scopes account bearer and legacy helpers keep relative endpoints
   await joinRoom('abcdef', 'Cas');
   assert.equal(calls[4].url, '/api/v1/rooms');
   assert.equal(calls[5].url, '/api/v1/rooms/ABCDEF/join');
+  await api.displayToken('abcdef', 'host-secret');
+  assert.equal(calls[6].url, 'https://party.test/api/v1/rooms/ABCDEF/display-token');
+  assert.equal(calls[6].method, 'POST');
+  assert.equal(calls[6].headers.get('Authorization'), 'Bearer host-secret');
 });
 
 test('HTTP failures retain server code/status, logout handles 204', async () => {

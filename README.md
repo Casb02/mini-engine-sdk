@@ -90,7 +90,7 @@ console.log(await api.stats());
 
 Accounts are optional. Omitting `accountToken` creates/joins as a guest. Create/join requests use the account bearer; room snapshot and game-data requests use their explicit room bearer. Register/login return `{account,token}` without storing credentials automatically. Set `api.accountToken` after login/register and choose your own persistence. Logout clears it after server success.
 
-`ApiClient` methods: `getGames()`, `getGame(id)`, `createRoom(options)`, `joinRoom(code,name)`, `getRoom(code,roomToken)`, `roomInfo(code)`, `gameData(code,hostToken)`, `register({username,password,display_name})`, `login({username,password})`, `me()`, `stats()`, `logout()`.
+`ApiClient` methods: `getGames()`, `getGame(id)`, `createRoom(options)`, `joinRoom(code,name)`, `getRoom(code,roomToken)`, `roomInfo(code)`, `gameData(code,hostToken)`, `displayToken(code,hostToken)`, `register({username,password,display_name})`, `login({username,password})`, `me()`, `stats()`, `logout()`. `displayToken` rotates the display credential and returns `{token}`; only share it through the room launcher's URL fragment.
 
 The original same-origin `http(path,{token,...fetchOptions})`, `getGames()`, `createRoom(options)` and `joinRoom(code,name)` exports remain available. `getGames()` returns `{games}`. `ApiClient({baseUrl,accountToken,fetch})` supports a separate server and custom fetch implementation; cross-origin browser requests require the server's CORS support.
 
@@ -132,3 +132,11 @@ npm run test:package  # Pack, install without scripts, import and run installed 
 ```
 
 CI runs those checks on Node 22 and 24. No npm publishing is configured.
+
+To test the generated game against a real engine, first build a Mini Engine v0.2 checkout with `cargo build`, then run:
+
+```sh
+MINI_ENGINE_CHECKOUT=/absolute/path/to/mini-engine npm run test:engine
+```
+
+This optional integration check starts an isolated engine with a temporary database, loads the generated package through its actual catalog, and executes all three generated role scripts in a DOM harness with real WebSockets. It verifies readiness, start, simultaneous votes, shared display totals and round reset, then removes its temporary data.
