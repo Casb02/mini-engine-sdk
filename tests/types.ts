@@ -12,6 +12,11 @@ const payload: ActionPayloads['judge'] = { correct: true };
 void client.action('judge', payload, { actionId: 'known' });
 const manifest: Manifest = { id:'vote', title:'Vote', description:'Vote', version:'1', min_players:1, max_players:10, has_display:true, default_settings:{}, settings_schema:{type:'object',title:'Settings',description:'Game settings',default:{prompt:'Vote?'},properties:{prompt:{type:'string',title:'Question',description:'Shown on screen',default:'Vote?'}},additionalProperties:false} };
 void manifest;
+const noLateJoin: Manifest = { ...manifest, supports_late_join: false };
+void noLateJoin;
+// @ts-expect-error late-join support is a capability boolean
+const invalidLateJoin: Manifest = { ...manifest, supports_late_join: 'false' };
+void invalidLateJoin;
 // @ts-expect-error settings retain their semantic type
 void client.setSettings({ prompt: 1 });
 // @ts-expect-error host_mode is immutable after creation

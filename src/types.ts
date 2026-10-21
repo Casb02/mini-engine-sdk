@@ -25,6 +25,8 @@ export interface Manifest<Settings = Record<string, Json>> {
   default_settings: Settings;
   settings_schema: { type: 'object'; properties: Record<string, SettingsProperty>; required?: string[]; additionalProperties: false; title?: string; description?: string; default?: Settings };
   runtime?: 'host' | 'server'; host_modes?: HostMode[]; default_host_mode?: HostMode;
+  /** Whether the game can support joins after start; omitted legacy packages default to true. */
+  supports_late_join?: boolean;
 }
 export interface RoomCredentials { code: string; token: string; role: Role; player_id?: string | null; display_token?: string }
 export interface CreateRoomOptions { game_id: string; max_players?: number; settings?: Record<string, Json>; name?: string; config?: Partial<RoomConfig> }

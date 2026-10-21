@@ -94,6 +94,8 @@ Accounts are optional. Omitting `accountToken` creates/joins as a guest. Create/
 
 The original same-origin `http(path,{token,...fetchOptions})`, `getGames()`, `createRoom(options)` and `joinRoom(code,name)` exports remain available. `getGames()` returns `{games}`. `ApiClient({baseUrl,accountToken,fetch})` supports a separate server and custom fetch implementation; cross-origin browser requests require the server's CORS support.
 
+Game metadata can declare `supports_late_join: false` when its rules cannot admit players after start. The optional capability defaults to true for legacy custom packages. Built-in Jeopardy disables late joining; Common Dice supports it. A room can enable `allow_late_join` only when its game supports the capability.
+
 ## Realtime API
 
 `new MiniEngine({code,token,baseUrl?,reconnectDelay?,requestTimeout?,WebSocket?})` works in a browser or Node with a WebSocket implementation. Node callers must supply `baseUrl`; credentials are sent only in the first socket authentication frame. Room codes are normalized automatically.
