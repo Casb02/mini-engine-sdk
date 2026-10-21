@@ -1,0 +1,37 @@
+{
+  "name": "@casb02/mini-engine-sdk",
+  "version": "0.2.0",
+  "description": "Typed Mini Engine client and trusted game scaffolder",
+  "type": "module",
+  "main": "./dist/mini-engine.js",
+  "types": "./dist/mini-engine.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/mini-engine.d.ts",
+      "import": "./dist/mini-engine.js"
+    }
+  },
+  "bin": {
+    "create-mini-game": "./bin/create-mini-game.mjs"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && esbuild src/mini-engine.ts --bundle --format=esm --target=es2022 --outfile=dist/mini-engine.js",
+    "test": "node --test tests/*.test.mjs",
+    "typecheck": "tsc -p tsconfig.consumer.json --noEmit",
+    "check": "npm run build && npm run typecheck && npm test",
+    "prepack": "npm run build",
+    "test:package": "node tests/package-smoke.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "typescript": "^5.9.3"
+  }
+}
