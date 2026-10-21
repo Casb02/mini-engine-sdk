@@ -3,10 +3,10 @@ import type { Ack, ActionEnvelope, ConnectionStatus, Json, Lifecycle, MutableRoo
 
 export interface SocketLike {
   readonly readyState: number;
-  onopen: (() => void) | null;
-  onmessage: ((event: { data: string }) => void) | null;
-  onclose: (() => void) | null;
-  onerror: (() => void) | null;
+  onopen: WebSocket['onopen'];
+  onmessage: WebSocket['onmessage'];
+  onclose: WebSocket['onclose'];
+  onerror: WebSocket['onerror'];
   send(data: string): void;
   close(): void;
 }
