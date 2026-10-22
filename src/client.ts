@@ -43,6 +43,9 @@ class RealtimeChannel implements Realtime {
   private readonly watchers = new Map<string, Set<RealtimeValueHandler>>();
   private values = new Map<string, Map<string, RealtimeEntry>>();
   private readonly pending = new Map<string, Json>();
+  /** Keys this connection set before its `rt.values` arrived; that frame cannot know them. */
+  private readonly early = new Set<string>();
+  private synced = false;
   private timer?: ReturnType<typeof setTimeout>;
   private flushed = 0;
   constructor(private readonly link: RealtimeLink, private readonly interval: number) {}
@@ -58,6 +61,7 @@ class RealtimeChannel implements Realtime {
   set(key: string, value: Json): void {
     const self = this.link.self();
     if (!self) return;
+    if (!this.synced) this.early.add(key);
     this.pending.set(key, value);
     this.store(key, value, self, Date.now());
     if (this.timer !== undefined) return;
@@ -109,10 +113,26 @@ class RealtimeChannel implements Realtime {
         if (!this.values.has(senderOf(from))) this.values.set(senderOf(from), new Map());
         this.values.get(senderOf(from))!.set(String(item.key), { value: item.value as Json, from, ts: Number(item.ts) || 0 });
       }
+      const self = this.link.self();
+      if (self) {
+        const sender = senderOf(self);
+        for (const key of this.early) {
+          const entry = previous.get(sender)?.get(key);
+          if (entry) {
+            if (!this.values.has(sender)) this.values.set(sender, new Map());
+            this.values.get(sender)!.set(key, entry);
+          } else this.values.get(sender)?.delete(key);
+        }
+        if (this.values.get(sender)?.size === 0) this.values.delete(sender);
+      }
+      this.early.clear();
+      this.synced = true;
       for (const [sender, entries] of previous) {
         for (const [key, entry] of entries) if (!this.values.get(sender)?.has(key)) this.notify(key, null, entry.from, entry.ts);
       }
-      for (const entries of this.values.values()) for (const [key, entry] of entries) this.notify(key, entry.value, entry.from, entry.ts);
+      for (const [sender, entries] of this.values) {
+        for (const [key, entry] of entries) if (previous.get(sender)?.get(key) !== entry) this.notify(key, entry.value, entry.from, entry.ts);
+      }
     } else if (message.type === 'rt.reset') {
       const previous = this.values;
       this.values = new Map();
@@ -124,6 +144,8 @@ class RealtimeChannel implements Realtime {
     clearTimeout(this.timer);
     this.timer = undefined;
     this.pending.clear();
+    this.early.clear();
+    this.synced = false;
   }
   clear(): void {
     this.drop();

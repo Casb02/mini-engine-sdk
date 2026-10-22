@@ -239,6 +239,41 @@ test('realtime values follow the server, are rebuilt after reconnect and cleared
   assert.equal(client.realtime.value('p3', 'kart'), undefined);
 });
 
+test('own values set before rt.values arrives survive that frame', async () => {
+  const client=new MiniEngine({code:'ABCDEF', token:'secret', WebSocket:Socket, baseUrl:'https://party.test', reconnectDelay:1});
+  const seen=[];
+  client.realtime.onValue('*', (value, from, ts, key) => seen.push([from.player_id, key, value]));
+  client.once('snapshot', () => client.realtime.set('ready', true));
+  client.connect();
+  const player=version => ({...snapshot(version), you:{role:'player', player_id:'p1'}});
+  const socket=Socket.sockets.at(-1);
+  socket.open();
+  socket.receive({type:'snapshot', room:player(2)});
+  socket.receive({type:'rt.values', values:[{key:'kart', value:{x:1}, from:sender('p2'), ts:5}]});
+  assert.deepEqual(socket.sent.filter(frame=>frame.type==='rt.set'), [{type:'rt.set', key:'ready', value:true}]);
+  assert.equal(client.realtime.value('p1', 'ready'), true);
+  assert.deepEqual(seen, [['p1','ready',true], ['p2','kart',{x:1}]]);
+  socket.close();
+  await wait(20);
+  const next=Socket.sockets.at(-1);
+  const after=client.waitForSnapshot().then(() => {
+    client.realtime.set('ready', null);
+    client.realtime.set('cursor', [1,2]);
+  });
+  next.open();
+  next.receive({type:'snapshot', room:player(3)});
+  await after;
+  seen.length=0;
+  next.receive({type:'rt.values', values:[{key:'ready', value:true, from:sender('p1'), ts:6}, {key:'kart', value:{x:2}, from:sender('p2'), ts:7}]});
+  assert.equal(client.realtime.value('p1', 'ready'), undefined);
+  assert.deepEqual(client.realtime.value('p1', 'cursor'), [1,2]);
+  assert.deepEqual(client.realtime.value('p2', 'kart'), {x:2});
+  assert.deepEqual(seen, [['p2','kart',{x:2}]]);
+  await wait(40);
+  assert.deepEqual(next.sent.filter(frame=>frame.type==='rt.set'), [{type:'rt.set', key:'ready', value:null}, {type:'rt.set', key:'cursor', value:[1,2]}]);
+  client.close();
+});
+
 test('reset is sent as one frame, drops unsent values and throttling is an event', async () => {
   const {client,socket}=attach({realtime:{setInterval:50}});
   client.realtime.set('a', 1);
