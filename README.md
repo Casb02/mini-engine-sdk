@@ -28,7 +28,7 @@ npm install @casb02/mini-engine-sdk
 
 ```sh
 npm install github:Casb02/mini-engine-sdk           # latest main
-npm install github:Casb02/mini-engine-sdk#v0.5.1    # a release tag
+npm install github:Casb02/mini-engine-sdk#v0.5.2    # a release tag
 ```
 
 Requires Node.js 22+. The package ships the ESM client (`dist/`), one bundled declaration file (`types/`), the `create-mini-game` scaffolder (`bin/`) and the AI agent skills (`skills/`).
@@ -250,7 +250,7 @@ Trust rules: the engine checks every award from a browser-host game.
 - The room is `running` or `finished` (`game_not_running` otherwise).
 - The player has a seat in the room (`player_not_found` otherwise) and plays with an account (`not_eligible` for a guest). A moderator and the display have no seat and never earn achievements; since 0.5.1 a host who plays along has a seat (`Snapshot.host_player_id`) and earns them like any player. The engine takes the account from its own seat record, never from the client.
 - The achievement is declared in the release the room is pinned to (`achievement_unknown`). A new achievement works in rooms created after its release is active.
-- The room was created by someone who was logged in, and the receiving account is not that creator's own account (`not_eligible`): no awards to yourself. Since 0.5.1 the host's own seat is the exception; another seat with the host's account (a moderator who also joined as a player) is still refused.
+- The room was created by someone who was logged in, and the receiving account is not that creator's own account (`not_eligible`): no awards to yourself. Since 0.5.1 the host's own seat is the exception, and since 0.5.2 so is any seat in a `tv` room (the TV is a device, not a player); another seat with the host's account in a moderator room is still refused.
 - At most 30 awards per room per minute (`rate_limit`).
 - Awarding an achievement a second time changes nothing and still acks. Title and description are stored at the moment of the award, so they survive later releases.
 
@@ -349,7 +349,7 @@ const credentials = await api.createRoom({ game_id: 'jeopardy', set_id: saved.id
 
 ## Releasing
 
-Bump `version` in `package.json`, merge, then tag: `git tag v0.5.1 && git push origin v0.5.1`. The [publish workflow](.github/workflows/publish.yml) runs the full check and publishes the tag to GitHub Packages with the repository's own `GITHUB_TOKEN`; the tag must match the package version.
+Bump `version` in `package.json`, merge, then tag: `git tag v0.5.2 && git push origin v0.5.2`. The [publish workflow](.github/workflows/publish.yml) runs the full check and publishes the tag to GitHub Packages with the repository's own `GITHUB_TOKEN`; the tag must match the package version.
 
 ## Sessions and distribution
 
