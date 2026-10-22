@@ -24,6 +24,8 @@ export interface Snapshot<PublicState = Json, Settings = Record<string, Json>, P
   runtime?: 'host' | 'server'; config?: RoomConfig; round_id?: string;
   /** `null` when the room plays with the game's own data. */
   set?: RoomSet | null;
+  /** The creator's own seat when they play along (`host_mode: 'playing'`), otherwise `null`. That seat is in `players`. */
+  host_player_id?: string | null;
   you: { role: Role; player_id?: string | null };
   host_state?: Json; player_states?: Record<string, Json>; private_state?: PrivateState;
 }
@@ -75,6 +77,8 @@ export interface Manifest<Settings = Record<string, Json>> {
   supports_late_join?: boolean;
   achievements?: AchievementDefinition[];
   set_kinds?: SetKind[];
+  /** Optional package path `assets/<name>.svg`: a square SVG tile of at most 64 KiB, without scripts, event attributes or `<foreignObject>`. Absent → the engine's own mark. */
+  icon?: string;
 }
 export interface RoomCredentials { code: string; token: string; role: Role; player_id?: string | null; display_token?: string }
 export interface CreateRoomOptions {
