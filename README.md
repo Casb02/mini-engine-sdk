@@ -1,4 +1,4 @@
-# Mini Engine SDK
+# Miniengine✱ SDK
 
 Typed, dependency-free browser client and game scaffolder for Mini Engine v0.2. Package name: **@casb02/mini-engine-sdk**, version **0.2.0**. The source repository is private. This package has **not been published to npm**; use the local build and tarball workflows below.
 
