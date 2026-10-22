@@ -25,8 +25,8 @@ A custom game is a trusted, static package in the engine's `games/<id>/`. The en
 
 1. **Clarify only what changes the design**: player count, what is secret from whom, round/turn structure and win condition, what the shared display shows, UI language. Otherwise assume, and list assumptions in your final report.
 2. **Find the engine checkout and SDK.** Scaffold — never hand-copy the template:
-   `node <sdk>/bin/create-mini-game.mjs <slug> --directory <engine>/games/<slug>`
-   (slug = lowercase letters/digits/hyphens, ≤48, starts with a letter; directory name must equal the slug and must not exist). Missing checkouts (both repositories are private; the user needs GitHub access): `git clone git@github.com:Casb02/mini-engine.git` (needs Rust via rustup) and `git clone git@github.com:Casb02/mini-engine-sdk.git` side by side. An empty folder is fine: clone both into it.
+   `npx -p @casb02/mini-engine-sdk create-mini-game <slug> --directory <engine>/games/<slug>` (or `me game new <slug>` from the Mini Engine CLI when the game will be uploaded to a hosted engine)
+   (slug = lowercase letters/digits/hyphens, ≤48, starts with a letter; directory name must equal the slug and must not exist). No engine checkout? Either clone the engine (`git clone git@github.com:Casb02/mini-engine.git`, private, needs GitHub access and Rust via rustup) to run games locally, or build in any folder and upload to a hosted engine with the CLI (`npm install -g github:Casb02/mini-engine-cli`, `me auth`, `me game upload`); the SDK itself comes from npm.
 3. **Manifest and settings**: see `references/manifest-and-settings.md`.
 4. **Design the state before coding**: write down `public_state`, `host_state` and `player_states` shapes plus a `phase` field. Put the rules in pure functions in `assets/logic.js` with `node:test` tests. Recipes: `references/host-runtime-patterns.md`.
 5. **Host reducer**: keep the scaffold's queue. For every action check name, payload shape, `room.status`, your phase, and that `action.player_id` is in `room.players`; ignore anything else. Publish the full next state.
