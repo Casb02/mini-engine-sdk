@@ -1,6 +1,8 @@
 import { ApiClient, MiniEngine, type Account, type AccountAchievement, type AchievementEarned, type Ack, type Manifest, type ActionPayloads, type Json, type JsonCompatible, type Realtime, type RealtimeFrom, type RoomSet, type SavedSet, type SetKind, type SetSchema, type SetSummary, type Snapshot } from '@casb02/mini-engine-sdk';
 const api = new ApiClient({ baseUrl: 'http://localhost:3000', accountToken: 'secret' });
 void api.createRoom({ game_id: 'vote', config: { host_mode: 'moderator' } });
+// 0.5.2: the creating device is the TV and has no seat.
+void api.createRoom({ game_id: 'vote', config: { host_mode: 'tv' } });
 const client = new MiniEngine<{ votes: Record<string, boolean> }, { prompt: string }>({ code: 'ABCDEF', token: 'secret' });
 const injected = new MiniEngine({ code: 'ABCDEF', token: 'secret', WebSocket: globalThis.WebSocket });
 void injected;
@@ -155,3 +157,5 @@ client.on('snapshot', (room: Snapshot) => {
   const isHost = (playerId: string) => playerId === room.host_player_id;
   void hostSeat; void isHost;
 });
+const partyGame: Manifest = { ...manifest, runtime: 'host', host_modes: ['playing', 'tv'], default_host_mode: 'playing' };
+void partyGame;

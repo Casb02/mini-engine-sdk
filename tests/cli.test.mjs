@@ -17,7 +17,7 @@ test('CLI scaffolds all roles, compatible manifest and parseable browser module'
     const manifest=JSON.parse(await readFile(join(target,'manifest.json'),'utf8'));
     assert.equal(manifest.id,'team-vote');
     assert.equal(manifest.runtime,'host');
-    assert.deepEqual(manifest.host_modes,['playing','moderator']);
+    assert.deepEqual(manifest.host_modes,['playing','tv']);
     assert.equal(manifest.default_host_mode,'playing');
     assert.equal(manifest.settings_schema.additionalProperties,false);
     for (const role of ['host','player','display']) {

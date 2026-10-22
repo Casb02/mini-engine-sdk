@@ -8,7 +8,14 @@ export type JsonCompatible<T> =
   : T extends object ? { [K in keyof T]: JsonCompatible<T[K]> }
   : never;
 export type Role = 'host' | 'player' | 'display';
-export type HostMode = 'moderator' | 'playing' | 'hostless';
+/**
+ * Who the room's creator is, chosen in the create form and fixed for the room.
+ * - `playing` ("Iedereen doet mee"): the creator has a seat and plays like everyone else; the default for party games.
+ * - `tv` ("TV", engine 0.5.2+): the creating device shows the game and has no seat; everyone plays on their phone. Browser-host games only.
+ * - `moderator` ("Ik, als spelleider"): a person who leads without a seat, such as a quiz master.
+ * - `hostless` ("Niemand"): built-in server games only; any seat may start and finish.
+ */
+export type HostMode = 'moderator' | 'playing' | 'tv' | 'hostless';
 export type Lifecycle = 'lobby' | 'running' | 'finished';
 export type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
 export interface RoomConfig { host_mode: HostMode; display_enabled: boolean; allow_late_join: boolean }
