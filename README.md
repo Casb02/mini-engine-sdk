@@ -7,7 +7,7 @@
 
 Typed, dependency-free browser client and game scaffolder for Mini Engine v0.4, published as the GitHub npm package [**@casb02/mini-engine-sdk**](https://github.com/Casb02/mini-engine-sdk/pkgs/npm/mini-engine-sdk) under the MIT license.
 
-Documentation (Dutch): [casb02.github.io/mini-engine-docs](https://casb02.github.io/mini-engine-docs/), including the [API reference PDF](https://casb02.github.io/mini-engine-docs/downloads/MiniEngine-API-v0.4.pdf).
+Documentation (Dutch): [docs.miniengine.nl](https://docs.miniengine.nl/), including the [API reference PDF](https://docs.miniengine.nl/downloads/MiniEngine-API-v0.4.pdf).
 
 ## Install
 
