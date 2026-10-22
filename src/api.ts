@@ -60,9 +60,9 @@ export class ApiClient {
   register(input: { username: string; password: string; display_name: string; email: string }): Promise<AccountSession> {
     return this.call('/accounts/register', { method: 'POST', body: JSON.stringify(input) });
   }
-  /** Confirms an address with the token from the `?verify=` link. */
+  /** Confirms an address with the token from the `?verify=` link; needs that account's `accountToken`. */
   verifyEmail(token: string): Promise<{ account: Account }> {
-    return this.call('/accounts/verify-email', { method: 'POST', body: JSON.stringify({ token }) });
+    return this.call('/accounts/verify-email', { method: 'POST', token: this.accountToken, body: JSON.stringify({ token }) });
   }
   /** Adds or changes the account address, or resends the confirmation link. */
   setEmail(email: string): Promise<{ account: Account; verification_sent: boolean }> {
