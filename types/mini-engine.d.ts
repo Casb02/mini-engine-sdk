@@ -123,6 +123,39 @@ export interface Ack {
     type: 'ack';
     request_id?: string;
 }
+/** Who sent a realtime event or value. The server stamps it; clients cannot set it. */
+export interface RealtimeFrom {
+    role: Role;
+    player_id: string | null;
+}
+/** Receivers of a realtime event: everyone, one role, or up to 16 player ids. */
+export type RealtimeTarget = 'all' | 'host' | 'players' | 'display' | string[];
+export interface RealtimeEmitOptions {
+    to?: RealtimeTarget;
+    echo?: boolean;
+}
+export interface RealtimeThrottled {
+    dropped: number;
+}
+/** `ts` is the server receive time in ms since the Unix epoch. */
+export type RealtimeEventHandler = (data: Json, from: RealtimeFrom, ts: number, channel: string) => void;
+/** `value` is `null` when the key was deleted. */
+export type RealtimeValueHandler = (value: Json, from: RealtimeFrom, ts: number, key: string) => void;
+/** Ephemeral events and latest-wins values. Never stored, versioned, queued or replayed. */
+export interface Realtime {
+    /** Send an event; returns false when not connected (the event is dropped, not queued). */
+    emit(channel: string, data?: Json, options?: RealtimeEmitOptions): boolean;
+    /** Listen to one channel, or to every channel with '*'. Returns an unsubscribe function. */
+    on(channel: string, fn: RealtimeEventHandler): () => void;
+    /** Set this connection's value for a key; `null` deletes it. Coalesced per key. */
+    set(key: string, value: Json): void;
+    /** Latest value of a key from a sender: 'host', 'display', a player id or a `from` object. */
+    value(from: string | RealtimeFrom, key: string): Json | undefined;
+    /** Listen to one key, or to every key with '*'. Returns an unsubscribe function. */
+    onValue(key: string, fn: RealtimeValueHandler): () => void;
+    /** Host only: clear every value in the room. */
+    reset(): void;
+}
 export interface ActionEnvelope {
     type: 'action';
     player_id: string;
@@ -252,6 +285,10 @@ export interface MiniEngineOptions {
     reconnectDelay?: number;
     requestTimeout?: number;
     WebSocket?: new (url: string) => SocketLike;
+    /** `setInterval`: send coalesced realtime values at most this often, in ms (default 33). */
+    realtime?: {
+        setInterval?: number;
+    };
 }
 interface Pending {
     resolve: (ack: Ack) => void;
@@ -264,6 +301,7 @@ interface Events<P, S, V> {
     status: ConnectionStatus;
     error: Error;
     closed: string;
+    throttled: RealtimeThrottled;
 }
 export interface WaitOptions {
     timeout?: number;
@@ -276,6 +314,9 @@ export declare class MiniEngine<P = Json, S = Record<string, Json>, V = Json> {
     room: Snapshot<P, S, V> | null;
     connected: boolean;
     readonly pending: Map<string, Pending>;
+    /** Ephemeral events and values for this room. */
+    readonly realtime: Realtime;
+    private readonly live;
     private readonly options;
     private readonly listeners;
     private readonly waiters;
@@ -294,6 +335,7 @@ export declare class MiniEngine<P = Json, S = Record<string, Json>, V = Json> {
     resume(): this;
     private open;
     private rejectPending;
+    private sendRealtime;
     request(type: string, payload?: Record<string, unknown>): Promise<Ack>;
     action(name: string, data?: Json, { actionId: id }?: {
         actionId?: string;

@@ -1,4 +1,4 @@
-import { ApiClient, MiniEngine, type Account, type Manifest, type ActionPayloads } from '@casb02/mini-engine-sdk';
+import { ApiClient, MiniEngine, type Account, type Manifest, type ActionPayloads, type Json, type Realtime, type RealtimeFrom } from '@casb02/mini-engine-sdk';
 const api = new ApiClient({ baseUrl: 'http://localhost:3000', accountToken: 'secret' });
 void api.createRoom({ game_id: 'vote', config: { host_mode: 'moderator' } });
 const client = new MiniEngine<{ votes: Record<string, boolean> }, { prompt: string }>({ code: 'ABCDEF', token: 'secret' });
@@ -31,3 +31,33 @@ const account: Account = { id: 'a', username: 'sander', display_name: 'Sander', 
 void account;
 // @ts-expect-error registration needs an email address since engine v0.4
 void new ApiClient().register({ username: 'sander', password: 'correct horse battery', display_name: 'Sander' });
+
+const realtime: Realtime = client.realtime;
+const emitted: boolean = realtime.emit('buzz', { at: 1 }, { to: ['p1'], echo: true });
+void emitted;
+void realtime.emit('pressed');
+void realtime.emit('cue', null, { to: 'display' });
+const offEvent = realtime.on('*', (data, from, ts, channel) => {
+  const role: 'host' | 'player' | 'display' = from.role; const id: string | null = from.player_id;
+  const at: number = ts; const name: string = channel; const payload: Json = data;
+  void role; void id; void at; void name; void payload;
+});
+offEvent();
+realtime.set('kart', { x: 1, y: 2 });
+realtime.set('kart', null);
+const sender: RealtimeFrom = { role: 'player', player_id: 'p1' };
+const kart: Json | undefined = realtime.value(sender, 'kart') ?? realtime.value('host', 'kart');
+void kart;
+const offValue = realtime.onValue('kart', (value, from, ts, key) => { void value; void from; void ts; void key; });
+offValue();
+realtime.reset();
+client.on('throttled', ({ dropped }) => { const count: number = dropped; void count; });
+void new MiniEngine({ code: 'ABCDEF', token: 'secret', realtime: { setInterval: 50 } });
+// @ts-expect-error targets are a role, everyone or a list of player ids
+void realtime.emit('buzz', null, { to: 'everyone' });
+// @ts-expect-error realtime values must be JSON
+realtime.set('kart', () => 1);
+// @ts-expect-error the server stamps the sender; emit has no from option
+void realtime.emit('buzz', null, { from: sender });
+// @ts-expect-error the realtime implementation stays private
+import type { RealtimeChannel } from '@casb02/mini-engine-sdk';

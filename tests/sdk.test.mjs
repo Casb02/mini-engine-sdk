@@ -142,3 +142,113 @@ test('room sessions keep compatible keys and reject corrupt credentials', () => 
   removeSession('abcdef','host',storage);
   assert.equal(loadSession('abcdef','host',storage),null);
 });
+
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+const sender = id => ({role:'player', player_id:id});
+
+test('realtime emit is fire and forget, targeted and never queued while offline', async () => {
+  const offline = new MiniEngine({code:'ABCDEF', token:'secret', WebSocket:Socket, baseUrl:'https://party.test'});
+  assert.equal(offline.realtime.emit('buzz'), false);
+  const {client,socket}=attach({reconnectDelay:1});
+  assert.equal(client.realtime.emit('buzz', {at:1}, {to:['p1','p2'], echo:true}), true);
+  assert.equal(client.realtime.emit('pressed'), true);
+  assert.deepEqual(socket.sent.slice(-2), [
+    {type:'rt.emit', channel:'buzz', data:{at:1}, to:['p1','p2'], echo:true},
+    {type:'rt.emit', channel:'pressed', data:null},
+  ]);
+  assert.equal(client.pending.size, 0);
+  socket.close();
+  assert.equal(client.realtime.emit('buzz'), false);
+  await wait(20);
+  const next=Socket.sockets.at(-1);
+  next.open();
+  next.receive({type:'snapshot', room:snapshot(3)});
+  assert.deepEqual(next.sent, [{type:'auth', token:'secret'}]);
+  client.close();
+  assert.equal(client.realtime.emit('buzz'), false);
+});
+
+test('realtime events reach channel and wildcard listeners until unsubscribed', () => {
+  const {client,socket}=attach();
+  const seen=[];
+  const off=client.realtime.on('buzz', (data, from, ts, channel) => seen.push(['buzz', data, from, ts, channel]));
+  client.realtime.on('*', (data, from, ts, channel) => seen.push(['*', data, from.player_id, ts, channel]));
+  socket.receive({type:'rt.event', channel:'buzz', data:{x:1}, from:sender('p1'), ts:100});
+  socket.receive({type:'rt.event', channel:'emoji', data:'🎉', from:{role:'display', player_id:null}, ts:101});
+  off();
+  socket.receive({type:'rt.event', channel:'buzz', data:2, from:sender('p2'), ts:102});
+  assert.deepEqual(seen, [
+    ['buzz', {x:1}, sender('p1'), 100, 'buzz'],
+    ['*', {x:1}, 'p1', 100, 'buzz'],
+    ['*', '🎉', null, 101, 'emoji'],
+    ['*', 2, 'p2', 102, 'buzz'],
+  ]);
+  client.close();
+});
+
+test('realtime values coalesce per key, apply locally and are flushed at most every interval', async () => {
+  const {client,socket}=attach({realtime:{setInterval:25}});
+  const seen=[];
+  client.realtime.onValue('kart', (value, from, ts, key) => seen.push([key, value, from.role]));
+  client.realtime.set('kart', {x:1});
+  client.realtime.set('kart', {x:2});
+  client.realtime.set('typing', true);
+  client.realtime.set('kart', {x:3});
+  const sets=()=>socket.sent.filter(frame=>frame.type==='rt.set');
+  assert.deepEqual(sets(), [{type:'rt.set', key:'kart', value:{x:1}}]);
+  assert.deepEqual(client.realtime.value('host', 'kart'), {x:3});
+  assert.deepEqual(client.realtime.value({role:'host', player_id:null}, 'typing'), true);
+  assert.equal(seen.length, 3);
+  await wait(40);
+  assert.deepEqual(sets().slice(1), [{type:'rt.set', key:'kart', value:{x:3}}, {type:'rt.set', key:'typing', value:true}]);
+  client.realtime.set('typing', null);
+  await wait(40);
+  assert.deepEqual(sets().at(-1), {type:'rt.set', key:'typing', value:null});
+  assert.equal(client.realtime.value('host', 'typing'), undefined);
+  client.close();
+});
+
+test('realtime values follow the server, are rebuilt after reconnect and cleared on terminal close', async () => {
+  const {client,socket}=attach({reconnectDelay:1});
+  const seen=[];
+  client.realtime.onValue('*', (value, from, ts, key) => seen.push([from.player_id, key, value, ts]));
+  socket.receive({type:'rt.values', values:[{key:'kart', value:{x:1}, from:sender('p1'), ts:5}]});
+  socket.receive({type:'rt.value', key:'kart', value:{x:2}, from:sender('p2'), ts:6});
+  socket.receive({type:'rt.value', key:'cursor', value:[1,2], from:sender('p2'), ts:7});
+  socket.receive({type:'rt.value', key:'cursor', value:null, from:sender('p2'), ts:8});
+  assert.deepEqual(client.realtime.value('p1', 'kart'), {x:1});
+  assert.deepEqual(client.realtime.value(sender('p2'), 'kart'), {x:2});
+  assert.equal(client.realtime.value('p2', 'cursor'), undefined);
+  client.realtime.set('pending', 1);
+  socket.close();
+  assert.deepEqual(client.realtime.value('p1', 'kart'), {x:1});
+  await wait(20);
+  const next=Socket.sockets.at(-1);
+  next.open();
+  next.receive({type:'snapshot', room:snapshot(3)});
+  next.receive({type:'rt.values', values:[{key:'kart', value:{x:9}, from:sender('p2'), ts:20}]});
+  assert.equal(next.sent.some(frame=>frame.type==='rt.set'), false);
+  assert.equal(client.realtime.value('p1', 'kart'), undefined);
+  assert.deepEqual(client.realtime.value('p2', 'kart'), {x:9});
+  assert.deepEqual(seen.slice(-3), [['p1','kart',null,5], [null,'pending',null,seen.at(-2)[3]], ['p2','kart',{x:9},20]]);
+  next.receive({type:'rt.reset', from:{role:'host', player_id:null}, ts:30});
+  assert.deepEqual(seen.at(-1), ['p2','kart',null,30]);
+  assert.equal(client.realtime.value('p2', 'kart'), undefined);
+  next.receive({type:'rt.value', key:'kart', value:1, from:sender('p3'), ts:31});
+  client.close();
+  assert.equal(client.realtime.value('p3', 'kart'), undefined);
+});
+
+test('reset is sent as one frame, drops unsent values and throttling is an event', async () => {
+  const {client,socket}=attach({realtime:{setInterval:50}});
+  client.realtime.set('a', 1);
+  client.realtime.set('a', 2);
+  client.realtime.reset();
+  await wait(70);
+  assert.deepEqual(socket.sent.filter(frame=>frame.type.startsWith('rt.')), [{type:'rt.set', key:'a', value:1}, {type:'rt.reset'}]);
+  const throttled=[];
+  client.on('throttled', event => throttled.push(event));
+  socket.receive({type:'rt.throttled', dropped:12});
+  assert.deepEqual(throttled, [{dropped:12}]);
+  client.close();
+});

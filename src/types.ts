@@ -38,6 +38,31 @@ export interface AccountStats {
   recent: Json[];
 }
 export interface Ack { type: 'ack'; request_id?: string }
+/** Who sent a realtime event or value. The server stamps it; clients cannot set it. */
+export interface RealtimeFrom { role: Role; player_id: string | null }
+/** Receivers of a realtime event: everyone, one role, or up to 16 player ids. */
+export type RealtimeTarget = 'all' | 'host' | 'players' | 'display' | string[];
+export interface RealtimeEmitOptions { to?: RealtimeTarget; echo?: boolean }
+export interface RealtimeThrottled { dropped: number }
+/** `ts` is the server receive time in ms since the Unix epoch. */
+export type RealtimeEventHandler = (data: Json, from: RealtimeFrom, ts: number, channel: string) => void;
+/** `value` is `null` when the key was deleted. */
+export type RealtimeValueHandler = (value: Json, from: RealtimeFrom, ts: number, key: string) => void;
+/** Ephemeral events and latest-wins values. Never stored, versioned, queued or replayed. */
+export interface Realtime {
+  /** Send an event; returns false when not connected (the event is dropped, not queued). */
+  emit(channel: string, data?: Json, options?: RealtimeEmitOptions): boolean;
+  /** Listen to one channel, or to every channel with '*'. Returns an unsubscribe function. */
+  on(channel: string, fn: RealtimeEventHandler): () => void;
+  /** Set this connection's value for a key; `null` deletes it. Coalesced per key. */
+  set(key: string, value: Json): void;
+  /** Latest value of a key from a sender: 'host', 'display', a player id or a `from` object. */
+  value(from: string | RealtimeFrom, key: string): Json | undefined;
+  /** Listen to one key, or to every key with '*'. Returns an unsubscribe function. */
+  onValue(key: string, fn: RealtimeValueHandler): () => void;
+  /** Host only: clear every value in the room. */
+  reset(): void;
+}
 export interface ActionEnvelope { type: 'action'; player_id: string; name: string; data: Json; request_id?: string; action_id?: string }
 export interface StateUpdate<PublicState = Json> { expected_version: number; public_state: PublicState; host_state?: Json; player_states?: Record<string, Json> }
 export interface ActionPayloads {
