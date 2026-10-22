@@ -1,4 +1,4 @@
-import type { Account, AccountSession, AccountStats, CreateRoomOptions, Manifest, RoomCredentials, Snapshot, RoomConfig, Lifecycle } from './types.js';
+import type { Account, AccountSession, AccountStats, CreateRoomOptions, Json, Manifest, RoomCredentials, Snapshot, RoomConfig, Lifecycle } from './types.js';
 
 export class MiniEngineError extends Error {
   constructor(message: string, public code = 'client_error', public status?: number) {
@@ -46,7 +46,7 @@ export class ApiClient {
   joinRoom(code: string, name: string): Promise<RoomCredentials> {
     return this.call(`${this.roomPath(code)}/join`, { method: 'POST', token: this.accountToken, body: JSON.stringify({ name }) });
   }
-  getRoom<P = import('./types.js').Json>(code: string, token: string): Promise<Snapshot<P>> {
+  getRoom<P = Json>(code: string, token: string): Promise<Snapshot<P>> {
     return this.call(this.roomPath(code), { token });
   }
   roomInfo(code: string): Promise<{ code: string; game_id: string; status: Lifecycle; player_count: number; max_players: number; runtime?: string; config?: RoomConfig }> {

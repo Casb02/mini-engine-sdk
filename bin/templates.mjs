@@ -1,3 +1,28 @@
+import { readFileSync } from 'node:fs';
+
+/** The bundled SDK declarations, copied into each game so editors type-check `/sdk/mini-engine.js` imports offline. */
+export const sdkDeclarations = readFileSync(new URL('../types/mini-engine.d.ts', import.meta.url), 'utf8');
+
+/**
+ * Editor/tsc configuration only; the engine never serves it. TypeScript applies `paths` to the rooted
+ * specifier `/sdk/mini-engine.js`; inside an engine checkout the first entry resolves to the engine's
+ * own vendored copy (web/mini-engine.d.ts), elsewhere the game's bundled copy is used.
+ */
+export const jsconfig = {
+  compilerOptions: {
+    target: 'es2022',
+    module: 'esnext',
+    moduleResolution: 'bundler',
+    lib: ['es2022', 'dom'],
+    allowJs: true,
+    checkJs: true,
+    strict: true,
+    noEmit: true,
+    paths: { '/sdk/mini-engine.js': ['../../web/mini-engine.d.ts', './types/mini-engine.d.ts'] },
+  },
+  include: ['assets/**/*.js'],
+};
+
 /** All files are static engine game assets; no generated npm dependency is required. */
 export function gameFiles(slug) {
   const title = slug.split('-').map(word => word[0].toUpperCase() + word.slice(1)).join(' ');
@@ -60,6 +85,8 @@ export function gameFiles(slug) {
     'display.html': html('display'),
     'assets/app.js': app,
     'assets/style.css': css,
+    'jsconfig.json': `${JSON.stringify(jsconfig, null, 2)}\n`,
+    'types/mini-engine.d.ts': sdkDeclarations,
     'README.md': `# ${title}
 
 A trusted **host-runtime** vote game for Mini Engine v0.2. The host tab validates player actions and publishes state; keep it online during play. Guests need no accounts. All roles see the same vote totals; players can optionally change their vote.
@@ -81,6 +108,14 @@ The generated HTML imports the SDK served by your engine at /sdk/mini-engine.js.
 - Change the layout in host.html, player.html, display.html and assets/style.css.
 - Keep only public assets in assets/; host-only data belongs in data.json and must be loaded through the authenticated game-data route.
 
+## Editor types
+
+assets/app.js is plain JavaScript with JSDoc types, so the browser runs it unchanged. jsconfig.json maps the import specifier /sdk/mini-engine.js to the SDK's type declarations: inside a Mini Engine checkout (games/${slug}/) it uses the engine's own web/mini-engine.d.ts, which always matches the SDK the engine serves; elsewhere it uses the bundled copy in types/mini-engine.d.ts. VS Code and other TypeScript-based editors pick this up automatically: you get completion for MiniEngine, room snapshots and settings, and wrong SDK calls are underlined. To check from a terminal:
+
+    npx -p typescript tsc -p jsconfig.json
+
+jsconfig.json and types/ are editor files: the engine only serves files under assets/ and ignores them. Describe your own state and settings shapes in the @typedef lines at the top of assets/app.js.
+
 The room snapshot is authoritative. A request acknowledgement means the action reached the host queue; it does not confirm durable processing for host-runtime games. The SDK never replays actions automatically. New rounds reset votes; the room's prompt and allow_change settings remain configurable through the workbench.
 
 Game packages are locally trusted code, not sandboxed uploads. Review a package before installing it.
@@ -89,19 +124,32 @@ Game packages are locally trusted code, not sandboxed uploads. Review a package 
 }
 
 const app = String.raw`import { MiniEngine, loadSession } from '/sdk/mini-engine.js';
+/** @import { Role, Snapshot } from '/sdk/mini-engine.js' */
 
-const $ = id => document.getElementById(id);
-const role = document.body.dataset.role;
+// Types come from jsconfig.json + types/mini-engine.d.ts; they are comments, so the browser runs this file as-is.
+/** @typedef {{ prompt: string, allow_change: boolean }} Settings Mirrors settings_schema in manifest.json. */
+/** @typedef {{ votes?: Record<string, boolean> }} PublicState Every role sees this; the engine starts each round with {}. */
+/** @typedef {Snapshot<PublicState, Settings>} Room */
+
+/** @param {string} id */
+const $ = id => /** @type {HTMLElement} */ (document.getElementById(id));
+/** @param {string} id */
+const button = id => /** @type {HTMLButtonElement} */ (document.getElementById(id));
+const role = /** @type {Role} */ (document.body.dataset.role);
 const code = new URLSearchParams(location.search).get('room') || '';
 const session = loadSession(code, role);
-const showError = error => { $('error').textContent = error.message || String(error); };
+/** @param {unknown} error */
+const showError = error => { $('error').textContent = /** @type {Error} */ (error)?.message || String(error); };
 
 if (!session) {
   showError(new Error('Open this game from the room launcher to restore your session.'));
 } else {
+  /** @type {MiniEngine<PublicState, Settings>} */
   const client = new MiniEngine(session);
+  /** @type {Promise<unknown>} */
   let queue = Promise.resolve();
   let busy = false;
+  /** @param {() => Promise<unknown>} operation */
   const run = async operation => {
     $('error').textContent = '';
     busy = true;
@@ -109,37 +157,45 @@ if (!session) {
     try { await operation(); } catch (error) { showError(error); }
     finally { busy = false; if (client.room) render(client.room); }
   };
+  /** @param {() => Promise<unknown>} operation */
   const enqueue = operation => {
     queue = queue.then(operation).catch(showError);
     return queue;
   };
-  const stateOf = room => room.public_state && typeof room.public_state === 'object' && room.public_state.votes
-    ? room.public_state : { votes: {} };
-  const publish = votes => client.setState({ expected_version: client.room.version, public_state: { votes } });
+  /** @param {Room} room */
+  const stateOf = room => ({ votes: room.public_state?.votes ?? {} });
+  /** @param {Room} room */
+  const meIn = room => room.players.find(player => player.id === room.you.player_id);
+  /** @param {Record<string, boolean>} votes */
+  const publish = votes => {
+    if (!client.room) throw new Error('No room snapshot yet.');
+    return client.setState({ expected_version: client.room.version, public_state: { votes } });
+  };
 
+  /** @param {Room} room */
   function render(room) {
     const state = stateOf(room);
     const votes = room.players.map(player => state.votes[player.id]).filter(value => typeof value === 'boolean');
-    const mine = state.votes[room.you.player_id];
-    const me = room.players.find(player => player.id === room.you.player_id);
+    const mine = room.you.player_id ? state.votes[room.you.player_id] : undefined;
+    const me = meIn(room);
     $('code').textContent = room.code;
     $('prompt').textContent = room.settings.prompt;
     $('status').textContent = !client.connected ? 'Reconnecting…' : room.status === 'lobby'
       ? 'Get ready. The host starts the vote.' : room.status === 'running' ? 'Voting is open.' : 'Voting finished.';
-    $('yes').textContent = votes.filter(value => value).length;
-    $('no').textContent = votes.filter(value => !value).length;
+    $('yes').textContent = String(votes.filter(value => value).length);
+    $('no').textContent = String(votes.filter(value => !value).length);
     $('player-controls').hidden = role !== 'player';
     $('host-controls').hidden = role !== 'host';
-    $('ready').hidden = room.status !== 'lobby';
-    $('ready').textContent = me?.ready ? 'Ready ✓' : "I'm ready";
-    $('ready').disabled = busy || !client.connected;
+    button('ready').hidden = room.status !== 'lobby';
+    button('ready').textContent = me?.ready ? 'Ready ✓' : "I'm ready";
+    button('ready').disabled = busy || !client.connected;
     const voteDisabled = busy || !client.connected || !room.host_connected || room.status !== 'running' || (!room.settings.allow_change && typeof mine === 'boolean');
-    $('vote-yes').disabled = voteDisabled;
-    $('vote-no').disabled = voteDisabled;
+    button('vote-yes').disabled = voteDisabled;
+    button('vote-no').disabled = voteDisabled;
     $('my-vote').textContent = typeof mine === 'boolean' ? 'Your vote: ' + (mine ? 'Yes' : 'No') : '';
-    $('start').disabled = busy || !client.connected || room.status !== 'lobby' || !room.players.length || room.players.some(player => !player.ready);
-    $('finish').disabled = busy || !client.connected || room.status !== 'running';
-    $('reset').disabled = busy || !client.connected || room.status !== 'finished';
+    button('start').disabled = busy || !client.connected || room.status !== 'lobby' || !room.players.length || room.players.some(player => !player.ready);
+    button('finish').disabled = busy || !client.connected || room.status !== 'running';
+    button('reset').disabled = busy || !client.connected || room.status !== 'finished';
     $('players').replaceChildren(...room.players.map(player => {
       const item = document.createElement('li');
       item.textContent = player.name + (player.ready ? ' · ready' : '') + (player.connected ? '' : ' · offline');
@@ -155,19 +211,22 @@ if (!session) {
     }));
     client.on('action', action => enqueue(async () => {
       const room = client.room;
-      if (!room || room.status !== 'running' || action.name !== 'vote' || typeof action.data?.yes !== 'boolean') return;
+      const data = action.data;
+      // Validate everything a player sends: payloads are untrusted JSON.
+      const yes = data && typeof data === 'object' && !Array.isArray(data) ? data.yes : undefined;
+      if (!room || room.status !== 'running' || action.name !== 'vote' || typeof yes !== 'boolean') return;
       if (!room.players.some(player => player.id === action.player_id)) return;
       const state = stateOf(room);
       if (!room.settings.allow_change && typeof state.votes[action.player_id] === 'boolean') return;
-      await publish({ ...state.votes, [action.player_id]: action.data.yes });
+      await publish({ ...state.votes, [action.player_id]: yes });
     }));
-    $('start').onclick = () => run(() => enqueue(() => client.lifecycle('running')));
-    $('finish').onclick = () => run(() => enqueue(() => client.lifecycle('finished')));
-    $('reset').onclick = () => run(() => enqueue(() => client.lifecycle('lobby')));
+    button('start').onclick = () => run(() => enqueue(() => client.lifecycle('running')));
+    button('finish').onclick = () => run(() => enqueue(() => client.lifecycle('finished')));
+    button('reset').onclick = () => run(() => enqueue(() => client.lifecycle('lobby')));
   }
-  $('ready').onclick = () => run(() => client.ready(!client.room.players.find(player => player.id === client.room.you.player_id)?.ready));
-  $('vote-yes').onclick = () => run(() => client.action('vote', { yes: true }));
-  $('vote-no').onclick = () => run(() => client.action('vote', { yes: false }));
+  button('ready').onclick = () => run(() => client.ready(!(client.room && meIn(client.room)?.ready)));
+  button('vote-yes').onclick = () => run(() => client.action('vote', { yes: true }));
+  button('vote-no').onclick = () => run(() => client.action('vote', { yes: false }));
   client.on('snapshot', render);
   client.on('error', showError);
   client.on('status', status => { if (client.room) render(client.room); else $('status').textContent = status; });

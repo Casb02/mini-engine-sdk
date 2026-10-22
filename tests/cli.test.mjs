@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 const cli = new URL('../bin/create-mini-game.mjs', import.meta.url);
 const run = args => spawnSync(process.execPath, [cli.pathname,...args],{encoding:'utf8'});
 
@@ -47,5 +48,27 @@ test('CLI refuses traversal, unknown flags, missing directory values and existin
     assert.notEqual(result.status,0);
     assert.equal(await readFile(join(target,'keep.txt'),'utf8'),'untouched');
     assert.equal(run(['--help']).status,0);
+  } finally { await rm(parent,{recursive:true,force:true}); }
+});
+
+test('generated games type-check their /sdk/mini-engine.js import and report SDK misuse', async () => {
+  const parent=await mkdtemp(join(tmpdir(),'mini-game-types-'));
+  const tsc=fileURLToPath(new URL('../node_modules/typescript/bin/tsc',import.meta.url));
+  const check=directory=>spawnSync(process.execPath,[tsc,'-p',join(directory,'jsconfig.json')],{encoding:'utf8'});
+  try {
+    const target=join(parent,'typed-vote');
+    assert.equal(run(['typed-vote','--directory',target]).status,0);
+    assert.equal(await readFile(join(target,'types/mini-engine.d.ts'),'utf8'),await readFile(new URL('../types/mini-engine.d.ts',import.meta.url),'utf8'));
+    const jsconfig=JSON.parse(await readFile(join(target,'jsconfig.json'),'utf8'));
+    assert.equal(jsconfig.compilerOptions.checkJs,true);
+    const valid=check(target);
+    assert.equal(valid.status,0,valid.stdout+valid.stderr);
+    const app=join(target,'assets/app.js');
+    const source=await readFile(app,'utf8');
+    await writeFile(app,source.replace("client.lifecycle('finished')","client.lifecycle('done')").replace('room.settings.prompt;','room.settings.promt;'));
+    const invalid=check(target);
+    assert.notEqual(invalid.status,0);
+    assert.match(invalid.stdout,/'"done"' is not assignable to parameter of type 'Lifecycle'/);
+    assert.match(invalid.stdout,/Property 'promt' does not exist on type 'Settings'/);
   } finally { await rm(parent,{recursive:true,force:true}); }
 });

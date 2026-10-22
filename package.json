@@ -4,10 +4,10 @@
   "description": "Typed Mini Engine client and trusted game scaffolder",
   "type": "module",
   "main": "./dist/mini-engine.js",
-  "types": "./dist/mini-engine.d.ts",
+  "types": "./types/mini-engine.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/mini-engine.d.ts",
+      "types": "./types/mini-engine.d.ts",
       "import": "./dist/mini-engine.js"
     }
   },
@@ -16,17 +16,20 @@
   },
   "files": [
     "dist",
+    "types",
     "bin",
+    "skills",
     "README.md"
   ],
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && esbuild src/mini-engine.ts --bundle --format=esm --target=es2022 --outfile=dist/mini-engine.js",
+    "build": "node scripts/build-types.mjs && esbuild src/mini-engine.ts --bundle --format=esm --target=es2022 --outfile=dist/mini-engine.js",
+    "types:check": "node scripts/build-types.mjs --check",
     "test": "node --test tests/*.test.mjs",
     "typecheck": "tsc -p tsconfig.consumer.json --noEmit",
-    "check": "npm run build && npm run typecheck && npm test",
+    "check": "npm run types:check && npm run build && npm run typecheck && npm test",
     "prepack": "npm run build",
     "test:package": "node tests/package-smoke.mjs",
     "test:engine": "npm run build && node tests/engine-smoke.mjs"

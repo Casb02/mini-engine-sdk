@@ -68,10 +68,10 @@ try {
   await host.elements.get('start').onclick();
   await until(()=>clients.every(client=>client.room.status==='running'));
   await Promise.all([first.elements.get('vote-yes').onclick(),second.elements.get('vote-no').onclick()]);
-  await until(()=>display.elements.get('yes').textContent===1 && display.elements.get('no').textContent===1);
+  await until(()=>display.elements.get('yes').textContent==='1' && display.elements.get('no').textContent==='1');
   assert.equal(Object.keys(host.client.room.public_state.votes).length,2);
   await first.elements.get('vote-no').onclick();
-  await until(()=>display.elements.get('yes').textContent===0 && display.elements.get('no').textContent===2);
+  await until(()=>display.elements.get('yes').textContent==='0' && display.elements.get('no').textContent==='2');
   await host.elements.get('finish').onclick();
   await until(()=>clients.every(client=>client.room.status==='finished'));
   await host.elements.get('reset').onclick();

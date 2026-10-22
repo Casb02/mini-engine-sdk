@@ -1,6 +1,13 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/banner-donker.png">
+  <img alt="Miniengine✱ SDK" src=".github/assets/banner-licht.png" width="100%">
+</picture>
+
 # Miniengine✱ SDK
 
 Typed, dependency-free browser client and game scaffolder for Mini Engine v0.2. Package name: **@casb02/mini-engine-sdk**, version **0.2.0**. The source repository is private. This package has **not been published to npm**; use the local build and tarball workflows below.
+
+Documentation (Dutch): [casb02.github.io/mini-engine-docs](https://casb02.github.io/mini-engine-docs/), including the [v0.2 API reference PDF](https://casb02.github.io/mini-engine-docs/downloads/MiniEngine-API-v0.2.pdf).
 
 ## Build a game in five minutes
 
@@ -27,6 +34,30 @@ node bin/create-mini-game.mjs --help
 ```
 
 The destination must not exist and its final directory name must match the slug, as required by the engine catalog. Slugs use at most 48 lowercase letters, digits and single hyphens, starting with a letter. The CLI rejects unsafe slugs and never overwrites an existing directory.
+
+## Build a game with an AI agent
+
+The `skills/` directory contains [Agent Skills](https://agentskills.io/specification) (a `SKILL.md` with YAML frontmatter plus `references/` and `scripts/`) that let a coding agent scaffold, implement, run and verify a Mini Engine game without guessing at the engine's rules:
+
+| Skill | Use |
+| --- | --- |
+| [`build-mini-engine-game`](skills/build-mini-engine-game/SKILL.md) | The workflow: scaffold with `create-mini-game`, manifest and settings schema, moderator host and roles, host-runtime state (public, host-only and per-player secrets), rounds, the shared display, running the engine and verifying with several seats. References cover the SDK API, manifest/settings rules, host-runtime recipes and troubleshooting; `scripts/play.mjs` drives a real room with Playwright. |
+| [`design-mini-engine-game-ui`](skills/design-mini-engine-game-ui/SKILL.md) | Player (phone), display (TV across the room) and host (console) pages: each game's own atmosphere, touch targets, readability, self-hosted fonts, no inline scripts under the engine's CSP, reduced motion. |
+
+Install them for **Claude Code** for all your projects, or only for one engine checkout:
+
+```sh
+mkdir -p ~/.claude/skills
+ln -s "$PWD"/skills/* ~/.claude/skills/                          # all projects (symlinks follow git pull)
+mkdir -p ../mini-engine/.claude/skills
+cp -R skills/* ../mini-engine/.claude/skills/                     # one project (copy; re-copy after updates)
+```
+
+Restart the agent session, then ask for example: *"Build a Mini Engine game where everyone secretly picks a number and the closest to 2/3 of the average wins; show the results on the shared screen."* The skill triggers on such requests; you can also name it (`/build-mini-engine-game` in Claude Code).
+
+**Other agents:** Codex, Gemini CLI, Copilot CLI and other agents that read the SKILL.md format also look in `~/.agents/skills/` (copy or symlink the same directories there, or into the location your agent documents). Agents without skill support can be pointed at the files directly: *"Read skills/build-mini-engine-game/SKILL.md in the Mini Engine SDK and follow it."* The skills also ship in the npm artifact (`node_modules/@casb02/mini-engine-sdk/skills/`).
+
+The skills assume an engine checkout (to run and test the game) and this SDK checkout (for `create-mini-game`); the agent will point you to both if they are missing.
 
 ## Install the local npm artifact
 
@@ -126,12 +157,22 @@ Outstanding commands reject on disconnect or timeout. Transient closures reconne
 
 `sessionKey(code,role)`, `saveSession(credentials,storage?)`, `loadSession(code,role,storage?)`, `removeSession(code,role,storage?)` retain the existing `mini-engine:CODE:ROLE` sessionStorage format. Storage helpers never put secrets into URL query strings. The room launcher consumes display credentials from the URL fragment before loading the game iframe.
 
-`dist/mini-engine.js` is one bundled ES module suitable for the engine's `/sdk/mini-engine.js` route; it has no runtime package dependencies. The npm artifact also includes TypeScript declarations. Engine maintainers can copy the built bundle into the engine's SDK asset; game packages consume the engine-served copy.
+`dist/mini-engine.js` is one bundled ES module suitable for the engine's `/sdk/mini-engine.js` route; it has no runtime package dependencies. Its declarations are the committed file `types/mini-engine.d.ts` (see [TypeScript types](#typescript-types)). Engine maintainers vendor both with the engine's `npm run sdk:sync -- /path/to/mini-engine-sdk`; game packages consume the engine-served copy.
 
 ```sh
-npm run check         # Build, strict typed consumer, transport/API/CLI tests
+npm run check         # Types up to date, build, strict typed consumer, transport/API/CLI tests
 npm run test:package  # Pack, install without scripts, import and run installed CLI
 ```
+
+## TypeScript types
+
+The whole public API is described by one self-contained declaration file, [`types/mini-engine.d.ts`](types/mini-engine.d.ts): no imports, no other files needed. It is generated from `src/` by `npm run build` (`scripts/build-types.mjs` type-checks the sources, stitches tsc's per-module declarations into one module and compiles the result on its own) and committed, so it is readable on GitHub without a build. `npm run check` starts with `npm run types:check`, which regenerates it in memory and fails when the committed file is stale; after changing `src/`, run `npm run build` and commit `types/mini-engine.d.ts` with your change. Do not edit it by hand.
+
+Where the types are picked up:
+
+- **npm/tarball consumers:** `package.json` `types` and `exports["."].types` point at `types/mini-engine.d.ts`, so `import { MiniEngine } from '@casb02/mini-engine-sdk'` is typed in TypeScript and in JavaScript editors.
+- **Mini Engine checkout:** `npm run sdk:sync` copies the file to the engine's `web/mini-engine.d.ts` next to the served bundle and pins its hash in `sdk-version.json` (`npm run sdk:check` verifies both).
+- **Scaffolded games:** `create-mini-game` writes `jsconfig.json` and a copy of the declarations in `types/mini-engine.d.ts`. Game code keeps importing the rooted browser path `/sdk/mini-engine.js`; TypeScript applies `compilerOptions.paths` to that specifier and resolves it to `../../web/mini-engine.d.ts` when the game lives in an engine checkout's `games/<slug>/` (always matching the SDK that engine serves), otherwise to the game's own `types/mini-engine.d.ts`. `checkJs` and `strict` are on, so VS Code and other TypeScript-based editors give completion and underline wrong SDK calls in plain JavaScript without a build step or an import map. The generated `assets/app.js` declares its state and settings shapes with JSDoc (`@typedef`, `@type {MiniEngine<PublicState, Settings>}`) and passes the check. From a terminal: `npx -p typescript tsc -p jsconfig.json` inside the game directory. The engine only serves `assets/`, so `jsconfig.json` and `types/` never reach browsers.
 
 CI runs those checks on Node 22 and 24. No npm publishing is configured.
 
