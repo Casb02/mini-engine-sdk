@@ -9,7 +9,7 @@ description: Use when asked to build, extend or debug a Mini Engine (miniengine�
 
 A custom game is a trusted, static package in the engine's `games/<id>/`. The engine owns rooms, seats, readiness, WebSockets and storage. **Your host page is the referee:** it receives every player action, validates it and publishes the complete next state. Custom games have no server-side code.
 
-## Hard facts (engine v0.2 — design around them)
+## Hard facts (engine v0.2+ — design around them)
 
 | Fact | Consequence |
 | --- | --- |
@@ -32,6 +32,7 @@ A custom game is a trusted, static package in the engine's `games/<id>/`. The en
 5. **Host reducer**: keep the scaffold's queue. For every action check name, payload shape, `room.status`, your phase, and that `action.player_id` is in `room.players`; ignore anything else. Publish the full next state.
 6. **Role pages**: REQUIRED SUB-SKILL: design-mini-engine-game-ui. Keep the JSDoc `@typedef`s in `assets/app.js` in sync with your state so the type check means something.
 7. **Verify** as in `references/verify-and-troubleshoot.md`: type check, rules tests, restart the engine, a hand-played game, and a scripted multi-seat run with `scripts/play.mjs` (Playwright). SDK API details: `references/sdk-api.md`.
+8. **Publish (optional, engine v0.3+)**: when the user has a dev key, use the `me` CLI instead of copying files to a server: `me game upload <dir>` stores a new immutable release (bump `version` in `manifest.json` first), `--activate` makes it live, `me game activate <id> <version>` rolls back. Live rooms keep the release they started with, so import your own modules relatively (`./logic.js`), never via `/games/<id>/assets/…`. Uploads must use `runtime: "host"`; limits are the same as on disk.
 
 ## Done means
 
