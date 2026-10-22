@@ -84,7 +84,7 @@ cp -R node_modules/@casb02/mini-engine-sdk/skills/* .claude/skills/     # this p
 
 Restart the agent session, then ask for example: *"Build a Mini Engine game where everyone secretly picks a number and the closest to 2/3 of the average wins; show the results on the shared screen."* The skill triggers on such requests; you can also name it (`/build-mini-engine-game` in Claude Code). It asks once whether to use MiniEngineUI; say *"use MiniEngineUI"* up front to skip the question.
 
-**Other agents:** Codex, Gemini CLI, Copilot CLI and other agents that read the SKILL.md format also look in `~/.agents/skills/` (copy or symlink the same directories there, or into the location your agent documents). Agents without skill support can be pointed at the files directly: *"Read skills/build-mini-engine-game/SKILL.md in the Mini Engine SDK and follow it."* The skills assume a Mini Engine to run and test the game (a local checkout, or a hosted engine plus the CLI to upload) and scaffold with `npx -p @casb02/mini-engine-sdk create-mini-game` or `me game new`.
+**Other agents:** Codex, Gemini CLI, Copilot CLI and other agents that read the SKILL.md format also look in `~/.agents/skills/` (copy or symlink the same directories there, or into the location your agent documents). Agents without skill support can be pointed at the files directly: *"Read skills/build-mini-engine-game/SKILL.md in the Mini Engine SDK and follow it."* The skills test a game first with `me dev` from the Mini Engine CLI (a local fake engine, no checkout needed) and then on a real Mini Engine (a local checkout, or a hosted engine plus the CLI to upload) and scaffold with `npx -p @casb02/mini-engine-sdk create-mini-game` or `me game new`.
 
 ## Using the client
 
@@ -205,7 +205,7 @@ client.on('throttled', ({ dropped }) => console.warn(`${dropped} realtime messag
 | `onValue(key,fn)` | `fn(value, from, ts, key)`; `'*'` listens to every key. `value` is `null` when the key was deleted, also when its player left or the host reset the values. |
 | `reset()` | Host only: clear every value in the room; every `onValue` handler gets `null` for each key. Values the host sets after calling it are kept. Other roles get a `forbidden` error event. |
 
-`from` is `{role, player_id}` and `ts` is the time the engine received the message, in milliseconds since the Unix epoch. The engine sets both; clients cannot. Every role may emit and set (host, players and display); values are kept per sender, so nobody can overwrite another sender's values. Event and value handlers that throw are logged and do not stop the others.
+`from` is `{role, player_id}` and `ts` is the time the engine received the message, in milliseconds since the Unix epoch. The engine sets both; clients cannot. Because `ts` is arrival time, network latency counts: every phone is judged on one clock, but a slow connection arrives later. Every role may emit and set (host, players and display); values are kept per sender, so nobody can overwrite another sender's values. Event and value handlers that throw are logged and do not stop the others.
 
 Limits:
 

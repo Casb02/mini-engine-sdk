@@ -1,5 +1,18 @@
 # Running, verifying and troubleshooting
 
+## Quick loop without an engine: `me dev`
+
+The Mini Engine CLI (0.5+) fakes the engine for `runtime: "host"` games, so you can play while you build:
+
+```sh
+cd <game directory>
+me dev                          # --players 4, --set sets/test.json, --port 3170, --no-open
+```
+
+It checks `manifest.json` like `me game upload`, then opens one page with the host, the display and every player side by side; each seat runs on its own port, so each has its own session like a separate phone. Saving a file reloads the seats and keeps the room. Rooms, ready, state versions, actions, realtime, achievements (every player counts as logged in; awards appear in the terminal) and game data (`--set` swaps in a set file, validated against `set_kinds`) work as on the engine. Everything lives in memory.
+
+Use it for the hand-played game and fast iteration. It is a fake: before you report done, still run the game once on a real engine (below, or an uploaded test release).
+
 ## Run the engine
 
 From the engine checkout root (defaults are relative to the working directory):

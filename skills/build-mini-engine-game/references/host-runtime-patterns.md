@@ -202,7 +202,7 @@ There are no server timers for custom games. The host tab runs `setTimeout` and 
 
 ### Buzzer
 
-Every player emits a press. The engine adds `from` (who sent it) and `ts` (when the engine received it, in ms), so presses from different phones are compared on one clock.
+Every player emits a press. The engine adds `from` (who sent it) and `ts` (when the engine received it, in ms), so presses from different phones are compared on one clock. It is arrival time, not the moment of the tap: a phone on a slow connection loses a few milliseconds.
 
 ```js
 // player.html side
