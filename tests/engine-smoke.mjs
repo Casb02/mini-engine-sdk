@@ -42,7 +42,8 @@ try {
   const api = new ApiClient({ baseUrl });
   const catalog = await api.getGames();
   assert.equal(catalog.games[0].id,'integration-vote');
-  const hostSession = await api.createRoom({game_id:'integration-vote'});
+  const hostSession = await api.createRoom({game_id:'integration-vote',name:'Host'});
+  assert.ok(hostSession.player_id,'the template lets the host play along by default');
   const firstSession = await api.joinRoom(hostSession.code,'First');
   const secondSession = await api.joinRoom(hostSession.code,'Second');
   const { token:displayToken } = await api.displayToken(hostSession.code,hostSession.token);
@@ -70,8 +71,11 @@ try {
   await Promise.all([first.elements.get('vote-yes').onclick(),second.elements.get('vote-no').onclick()]);
   await until(()=>display.elements.get('yes').textContent==='1' && display.elements.get('no').textContent==='1');
   assert.equal(Object.keys(host.client.room.public_state.votes).length,2);
+  assert.equal(host.client.room.host_player_id,hostSession.player_id);
+  await host.elements.get('vote-yes').onclick();
+  await until(()=>display.elements.get('yes').textContent==='2' && display.elements.get('no').textContent==='1');
   await first.elements.get('vote-no').onclick();
-  await until(()=>display.elements.get('yes').textContent==='0' && display.elements.get('no').textContent==='2');
+  await until(()=>display.elements.get('yes').textContent==='1' && display.elements.get('no').textContent==='2');
   await host.elements.get('finish').onclick();
   await until(()=>clients.every(client=>client.room.status==='finished'));
   await host.elements.get('reset').onclick();

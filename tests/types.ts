@@ -148,3 +148,10 @@ client.on('snapshot', (room: Snapshot) => {
   const set: RoomSet | null | undefined = room.set;
   if (set) { const name: string = set.title; const kind: string = set.kind; void name; void kind; }
 });
+const withIcon: Manifest = { ...manifest, icon: 'assets/icon.svg', runtime: 'host', host_modes: ['moderator', 'playing'], default_host_mode: 'playing' };
+void withIcon;
+client.on('snapshot', (room: Snapshot) => {
+  const hostSeat: string | null | undefined = room.host_player_id;
+  const isHost = (playerId: string) => playerId === room.host_player_id;
+  void hostSeat; void isHost;
+});

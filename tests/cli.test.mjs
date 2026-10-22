@@ -17,7 +17,8 @@ test('CLI scaffolds all roles, compatible manifest and parseable browser module'
     const manifest=JSON.parse(await readFile(join(target,'manifest.json'),'utf8'));
     assert.equal(manifest.id,'team-vote');
     assert.equal(manifest.runtime,'host');
-    assert.deepEqual(manifest.host_modes,['moderator']);
+    assert.deepEqual(manifest.host_modes,['playing','moderator']);
+    assert.equal(manifest.default_host_mode,'playing');
     assert.equal(manifest.settings_schema.additionalProperties,false);
     for (const role of ['host','player','display']) {
       const html=await readFile(join(target,`${role}.html`),'utf8');
@@ -29,6 +30,8 @@ test('CLI scaffolds all roles, compatible manifest and parseable browser module'
     assert.match(app,/client.ready/);
     assert.match(app,/queue = queue/);
     assert.match(app,/textContent/);
+    assert.match(app,/host_player_id/);
+    assert.match(app,/enqueue\(\(\) => applyVote\(own/);
     const checked=spawnSync(process.execPath,['--check','--input-type=module'],{input:app,encoding:'utf8'});
     assert.equal(checked.status,0,checked.stderr);
     assert.match(await readFile(join(target,'README.md'),'utf8'),/host-runtime/);

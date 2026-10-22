@@ -28,7 +28,7 @@ npm install @casb02/mini-engine-sdk
 
 ```sh
 npm install github:Casb02/mini-engine-sdk           # latest main
-npm install github:Casb02/mini-engine-sdk#v0.5.0    # a release tag
+npm install github:Casb02/mini-engine-sdk#v0.5.1    # a release tag
 ```
 
 Requires Node.js 22+. The package ships the ESM client (`dist/`), one bundled declaration file (`types/`), the `create-mini-game` scaffolder (`bin/`) and the AI agent skills (`skills/`).
@@ -69,7 +69,7 @@ The `skills/` directory contains [Agent Skills](https://agentskills.io/specifica
 
 | Skill | Use |
 | --- | --- |
-| [`build-mini-engine-game`](skills/build-mini-engine-game/SKILL.md) | The workflow: scaffold with `create-mini-game`, manifest and settings schema, moderator host and roles, host-runtime state (public, host-only and per-player secrets), rounds, the shared display, running the engine and verifying with several seats. References cover the SDK API, manifest/settings rules (including achievements and set kinds), host-runtime recipes (including realtime buzzers and positions, and awarding achievements) and troubleshooting; `scripts/play.mjs` drives a real room with Playwright. |
+| [`build-mini-engine-game`](skills/build-mini-engine-game/SKILL.md) | The workflow: scaffold with `create-mini-game`, manifest and settings schema, host modes (the host plays along by default) and roles, host-runtime state (public, host-only and per-player secrets), rounds, the shared display, running the engine and verifying with several seats. References cover the SDK API, manifest/settings rules (including achievements and set kinds), host-runtime recipes (including realtime buzzers and positions, and awarding achievements) and troubleshooting; `scripts/play.mjs` drives a real room with Playwright. |
 | [`design-mini-engine-game-ui`](skills/design-mini-engine-game-ui/SKILL.md) | Player (phone), display (TV across the room) and host (console) pages: each game's own atmosphere, touch targets, readability, self-hosted fonts, no inline scripts under the engine's CSP, reduced motion. |
 | [`mini-engine-ui`](skills/mini-engine-ui/SKILL.md) | **MiniEngineUI**: the calm style of the Mini Engine demo games as a copy-in kit (stylesheet, Space Grotesk and DM Sans, host/player/display pages that fit the scaffold) with four themes (`kalk`, `nacht`, `vilt`, `studio`) and room for one signature element. The build skill asks whether you want it, and uses it when you only have an idea. |
 
@@ -248,9 +248,9 @@ Trust rules: the engine checks every award from a browser-host game.
 
 - Only the host of a browser-host room awards; a server-runtime room answers `forbidden`.
 - The room is `running` or `finished` (`game_not_running` otherwise).
-- The player has a seat in the room (`player_not_found` otherwise) and plays with an account (`not_eligible` for a guest). The moderator and the display have no seat and never earn achievements. The engine takes the account from its own seat record, never from the client.
+- The player has a seat in the room (`player_not_found` otherwise) and plays with an account (`not_eligible` for a guest). A moderator and the display have no seat and never earn achievements; since 0.5.1 a host who plays along has a seat (`Snapshot.host_player_id`) and earns them like any player. The engine takes the account from its own seat record, never from the client.
 - The achievement is declared in the release the room is pinned to (`achievement_unknown`). A new achievement works in rooms created after its release is active.
-- The room was created by someone who was logged in, and the receiving account is not that creator's own account (`not_eligible`): no awards to yourself.
+- The room was created by someone who was logged in, and the receiving account is not that creator's own account (`not_eligible`): no awards to yourself. Since 0.5.1 the host's own seat is the exception; another seat with the host's account (a moderator who also joined as a player) is still refused.
 - At most 30 awards per room per minute (`rate_limit`).
 - Awarding an achievement a second time changes nothing and still acks. Title and description are stored at the moment of the award, so they survive later releases.
 
@@ -349,7 +349,7 @@ const credentials = await api.createRoom({ game_id: 'jeopardy', set_id: saved.id
 
 ## Releasing
 
-Bump `version` in `package.json`, merge, then tag: `git tag v0.5.0 && git push origin v0.5.0`. The [publish workflow](.github/workflows/publish.yml) runs the full check and publishes the tag to GitHub Packages with the repository's own `GITHUB_TOKEN`; the tag must match the package version.
+Bump `version` in `package.json`, merge, then tag: `git tag v0.5.1 && git push origin v0.5.1`. The [publish workflow](.github/workflows/publish.yml) runs the full check and publishes the tag to GitHub Packages with the repository's own `GITHUB_TOKEN`; the tag must match the package version.
 
 ## Sessions and distribution
 
