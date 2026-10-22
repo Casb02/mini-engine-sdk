@@ -1,5 +1,12 @@
 /** JSON values accepted by Mini Engine's wire protocol. */
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
+/** `T` when it serializes to JSON as it is, interfaces without an index signature included; `never` for functions, dates, maps, bigint and undefined. */
+export type JsonCompatible<T> =
+  T extends null | boolean | number | string ? T
+  : T extends (...args: never[]) => unknown ? never
+  : T extends readonly (infer Item)[] ? readonly JsonCompatible<Item>[]
+  : T extends object ? { [K in keyof T]: JsonCompatible<T[K]> }
+  : never;
 export type Role = 'host' | 'player' | 'display';
 export type HostMode = 'moderator' | 'playing' | 'hostless';
 export type Lifecycle = 'lobby' | 'running' | 'finished';

@@ -1,4 +1,4 @@
-import type { Account, AccountAchievement, AccountSession, AccountStats, CreateRoomOptions, Json, Manifest, NewSet, RoomCredentials, SavedSet, SetFilter, SetSummary, Snapshot, RoomConfig, Lifecycle } from './types.js';
+import type { Account, AccountAchievement, AccountSession, AccountStats, CreateRoomOptions, Json, JsonCompatible, Manifest, NewSet, RoomCredentials, SavedSet, SetFilter, SetSummary, Snapshot, RoomConfig, Lifecycle } from './types.js';
 
 export class MiniEngineError extends Error {
   constructor(message: string, public code = 'client_error', public status?: number) {
@@ -90,11 +90,11 @@ export class ApiClient {
     return this.call(this.setPath(id), { token: this.accountToken });
   }
   /** Saves a set; the kind must be declared by the game's active release and the data must match its schema. */
-  createSet<Data extends Json = Json>(input: NewSet<Data>): Promise<SavedSet<Data>> {
+  createSet<Data = Json>(input: NewSet<Data> & { data: JsonCompatible<Data> }): Promise<SavedSet<Data>> {
     return this.call('/accounts/sets', { method: 'POST', token: this.accountToken, body: JSON.stringify(input) });
   }
   /** Replaces the title and content of a set; rooms that already use it keep their copy. */
-  updateSet<Data extends Json = Json>(id: string, input: { title: string; data: Data }): Promise<SavedSet<Data>> {
+  updateSet<Data = Json>(id: string, input: { title: string; data: Data & JsonCompatible<Data> }): Promise<SavedSet<Data>> {
     return this.call(this.setPath(id), { method: 'PUT', token: this.accountToken, body: JSON.stringify(input) });
   }
   deleteSet(id: string): Promise<null> {

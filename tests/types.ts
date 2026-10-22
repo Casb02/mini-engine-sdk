@@ -1,4 +1,4 @@
-import { ApiClient, MiniEngine, type Account, type AccountAchievement, type AchievementEarned, type Ack, type Manifest, type ActionPayloads, type Json, type Realtime, type RealtimeFrom, type RoomSet, type SavedSet, type SetKind, type SetSchema, type SetSummary, type Snapshot } from '@casb02/mini-engine-sdk';
+import { ApiClient, MiniEngine, type Account, type AccountAchievement, type AchievementEarned, type Ack, type Manifest, type ActionPayloads, type Json, type JsonCompatible, type Realtime, type RealtimeFrom, type RoomSet, type SavedSet, type SetKind, type SetSchema, type SetSummary, type Snapshot } from '@casb02/mini-engine-sdk';
 const api = new ApiClient({ baseUrl: 'http://localhost:3000', accountToken: 'secret' });
 void api.createRoom({ game_id: 'vote', config: { host_mode: 'moderator' } });
 const client = new MiniEngine<{ votes: Record<string, boolean> }, { prompt: string }>({ code: 'ABCDEF', token: 'secret' });
@@ -121,6 +121,27 @@ void api.createSet({ game_id: 'jeopardy', kind: 'board', data: {} });
 void api.updateSet('set-id', { title: 'Filmavond', data: { categories: [] } });
 // @ts-expect-error the game and kind of a set never change
 void api.updateSet('set-id', { title: 'Filmavond', data: {}, kind: 'deck' });
+interface Clue { question: string; answer: string; hint?: string }
+interface BoardData { categories: { title: string; clues: Clue[] }[]; tags: readonly string[] }
+declare const boardData: BoardData;
+const asJson: JsonCompatible<BoardData> = boardData;
+void asJson;
+void api.getSet<BoardData>('set-id').then(async saved => {
+  const updated: SavedSet<BoardData> = await api.updateSet('set-id', { title: saved.title, data: saved.data });
+  void updated;
+  const copy: SavedSet<BoardData> = await api.createSet({ game_id: saved.game_id, kind: saved.kind, title: 'Kopie', data: saved.data });
+  void copy;
+});
+void api.createSet<BoardData>({ game_id: 'jeopardy', kind: 'board', title: 'Filmavond', data: boardData });
+void api.getSet('set-id').then(saved => api.updateSet('set-id', { title: saved.title, data: saved.data }));
+// @ts-expect-error functions are not JSON
+void api.createSet({ game_id: 'jeopardy', kind: 'board', title: 'Filmavond', data: { score: () => 1 } });
+// @ts-expect-error dates are not JSON
+void api.updateSet('set-id', { title: 'Filmavond', data: { at: new Date() } });
+// @ts-expect-error a map is not JSON
+void api.updateSet('set-id', { title: 'Filmavond', data: new Map<string, string>() });
+// @ts-expect-error undefined is not JSON
+void api.createSet({ game_id: 'jeopardy', kind: 'board', title: 'Filmavond', data: undefined });
 const deleted: Promise<null> = api.deleteSet('set-id');
 void deleted;
 client.on('snapshot', (room: Snapshot) => {

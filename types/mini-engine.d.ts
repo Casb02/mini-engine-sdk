@@ -6,6 +6,10 @@
 export type Json = null | boolean | number | string | Json[] | {
     [key: string]: Json;
 };
+/** `T` when it serializes to JSON as it is, interfaces without an index signature included; `never` for functions, dates, maps, bigint and undefined. */
+export type JsonCompatible<T> = T extends null | boolean | number | string ? T : T extends (...args: never[]) => unknown ? never : T extends readonly (infer Item)[] ? readonly JsonCompatible<Item>[] : T extends object ? {
+    [K in keyof T]: JsonCompatible<T[K]>;
+} : never;
 export type Role = 'host' | 'player' | 'display';
 export type HostMode = 'moderator' | 'playing' | 'hostless';
 export type Lifecycle = 'lobby' | 'running' | 'finished';
@@ -372,11 +376,13 @@ export declare class ApiClient {
     /** One of the account's sets with its content; another account's set answers 404 `set_not_found`. */
     getSet<Data = Json>(id: string): Promise<SavedSet<Data>>;
     /** Saves a set; the kind must be declared by the game's active release and the data must match its schema. */
-    createSet<Data extends Json = Json>(input: NewSet<Data>): Promise<SavedSet<Data>>;
+    createSet<Data = Json>(input: NewSet<Data> & {
+        data: JsonCompatible<Data>;
+    }): Promise<SavedSet<Data>>;
     /** Replaces the title and content of a set; rooms that already use it keep their copy. */
-    updateSet<Data extends Json = Json>(id: string, input: {
+    updateSet<Data = Json>(id: string, input: {
         title: string;
-        data: Data;
+        data: Data & JsonCompatible<Data>;
     }): Promise<SavedSet<Data>>;
     deleteSet(id: string): Promise<null>;
     logout(): Promise<null>;
