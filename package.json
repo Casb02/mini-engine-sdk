@@ -15,11 +15,12 @@
     "create-mini-game": "./bin/create-mini-game.mjs"
   },
   "files": [
-    "dist",
-    "types",
+    "LICENSE",
+    "README.md",
     "bin",
+    "dist",
     "skills",
-    "README.md"
+    "types"
   ],
   "engines": {
     "node": ">=22"
@@ -37,5 +38,10 @@
   "devDependencies": {
     "esbuild": "^0.28.2",
     "typescript": "^5.9.3"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Casb02/mini-engine-sdk.git"
   }
 }
