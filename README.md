@@ -5,7 +5,7 @@
 
 # Miniengine✱ SDK
 
-Typed, dependency-free browser client and game scaffolder for Mini Engine v0.4. Package name: **@casb02/mini-engine-sdk**, version **0.3.0**. The source is public on GitHub under the MIT license. This package has **not been published to npm**; use the local build and tarball workflows below.
+Typed, dependency-free browser client and game scaffolder for Mini Engine v0.4. Package name: **@casb02/mini-engine-sdk**, version **0.3.1**. The source is public on GitHub under the MIT license. This package has **not been published to npm**; use the local build and tarball workflows below.
 
 Documentation (Dutch): [casb02.github.io/mini-engine-docs](https://casb02.github.io/mini-engine-docs/), including the [API reference PDF](https://casb02.github.io/mini-engine-docs/downloads/MiniEngine-API-v0.4.pdf).
 
@@ -70,7 +70,7 @@ npm pack
 Then, in your own project:
 
 ```sh
-npm install /absolute/path/to/mini-engine-sdk/casb02-mini-engine-sdk-0.3.0.tgz
+npm install /absolute/path/to/mini-engine-sdk/casb02-mini-engine-sdk-0.3.1.tgz
 npx create-mini-game my-game --directory /path/to/engine/games/my-game
 ```
 
