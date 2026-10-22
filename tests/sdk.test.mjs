@@ -21,6 +21,22 @@ const attach = options => {
   return {client, socket};
 };
 
+test('ApiClient sends a Turnstile token only when one is given', async () => {
+  const calls = [];
+  const fetch = async (url, options) => { calls.push({url, ...options}); return {ok:true, status:200, json:async()=>({})}; };
+  const api = new ApiClient({baseUrl:'https://party.test', accountToken:'account', fetch});
+  const dani = {username:'dani', password:'correct horse battery', display_name:'Dani', email:'dani@example.com'};
+  await api.register(dani);
+  await api.register(dani, {turnstileToken:'widget'});
+  await api.setEmail('dani@example.com', {turnstileToken:'again'});
+  await api.accountConfig();
+  assert.equal(calls[0].headers.has('X-Turnstile-Token'), false);
+  assert.equal(calls[1].headers.get('X-Turnstile-Token'), 'widget');
+  assert.equal(calls[2].headers.get('X-Turnstile-Token'), 'again');
+  assert.equal(calls[2].headers.get('Authorization'), 'Bearer account');
+  assert.equal(calls[3].url, 'https://party.test/api/v1/accounts/config');
+});
+
 test('ApiClient scopes account bearer and legacy helpers keep relative endpoints', async () => {
   const calls = [];
   const fetch = async (url, options) => { calls.push({url, ...options}); return {ok:true, status:200, json:async()=>({code:'ABCDEF'})}; };

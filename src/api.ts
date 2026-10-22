@@ -1,4 +1,4 @@
-import type { Account, AccountAchievement, AccountSession, AccountStats, CreateRoomOptions, Json, JsonCompatible, Manifest, NewSet, RoomCredentials, SavedSet, SetFilter, SetSummary, Snapshot, RoomConfig, Lifecycle } from './types.js';
+import type { Account, AccountAchievement, AccountSession, AccountStats, CreateRoomOptions, Json, JsonCompatible, Manifest, NewSet, RoomCredentials, RoomInfo, SavedSet, SetFilter, SetSummary, Snapshot } from './types.js';
 
 export class MiniEngineError extends Error {
   constructor(message: string, public code = 'client_error', public status?: number) {
@@ -8,6 +8,9 @@ export class MiniEngineError extends Error {
 }
 export interface HttpOptions extends RequestInit { token?: string }
 export interface ApiClientOptions { baseUrl?: string; accountToken?: string; fetch?: typeof fetch }
+/** The Cloudflare Turnstile widget's token; `accountConfig()` gives the site key to render it with. */
+export interface TurnstileOptions { turnstileToken?: string }
+const turnstileHeaders = (token?: string): Record<string, string> => token ? { 'X-Turnstile-Token': token } : {};
 export const normalizeCode = (code: string): string => code.trim().toUpperCase();
 export function endpoint(baseUrl: string, path: string): string {
   return baseUrl ? `${baseUrl.replace(/\/+$/, '')}${path}` : path;
@@ -49,28 +52,33 @@ export class ApiClient {
   getRoom<P = Json>(code: string, token: string): Promise<Snapshot<P>> {
     return this.call(this.roomPath(code), { token });
   }
-  roomInfo(code: string): Promise<{ code: string; game_id: string; status: Lifecycle; player_count: number; max_players: number; runtime?: string; config?: RoomConfig }> {
+  roomInfo(code: string): Promise<RoomInfo> {
     return this.call(`${this.roomPath(code)}/info`);
   }
   gameData<T = unknown>(code: string, token: string): Promise<T> { return this.call(`${this.roomPath(code)}/game-data`, { token }); }
   displayToken(code: string, token: string): Promise<{ token: string }> {
     return this.call(`${this.roomPath(code)}/display-token`, { method: 'POST', token });
   }
-  /** Creates an account; the engine mails a confirmation link to `email`. */
-  register(input: { username: string; password: string; display_name: string; email: string }): Promise<AccountSession> {
-    return this.call('/accounts/register', { method: 'POST', body: JSON.stringify(input) });
+  /**
+   * Creates an account; the engine mails a confirmation link to `email`.
+   * When the engine runs Turnstile, pass the widget token rendered with action `register`.
+   */
+  register(input: { username: string; password: string; display_name: string; email: string }, { turnstileToken }: TurnstileOptions = {}): Promise<AccountSession> {
+    return this.call('/accounts/register', { method: 'POST', headers: turnstileHeaders(turnstileToken), body: JSON.stringify(input) });
   }
   /** Confirms an address with the token from the `?verify=` link; needs that account's `accountToken`. */
   verifyEmail(token: string): Promise<{ account: Account }> {
     return this.call('/accounts/verify-email', { method: 'POST', token: this.accountToken, body: JSON.stringify({ token }) });
   }
-  /** Adds or changes the account address, or resends the confirmation link. */
-  setEmail(email: string): Promise<{ account: Account; verification_sent: boolean }> {
-    return this.call('/accounts/email', { method: 'PUT', token: this.accountToken, body: JSON.stringify({ email }) });
+  /** Adds or changes the account address, or resends the confirmation link; a Turnstile token uses action `email`. */
+  setEmail(email: string, { turnstileToken }: TurnstileOptions = {}): Promise<{ account: Account; verification_sent: boolean }> {
+    return this.call('/accounts/email', { method: 'PUT', token: this.accountToken, headers: turnstileHeaders(turnstileToken), body: JSON.stringify({ email }) });
   }
   login(input: { username: string; password: string }): Promise<AccountSession> {
     return this.call('/accounts/login', { method: 'POST', body: JSON.stringify(input) });
   }
+  /** Public account settings; `turnstile_site_key` is `null` when the engine does not check for robots. */
+  accountConfig(): Promise<{ turnstile_site_key: string | null }> { return this.call('/accounts/config'); }
   me(): Promise<Account> { return this.call('/accounts/me', { token: this.accountToken }); }
   stats(): Promise<AccountStats> { return this.call('/accounts/stats', { token: this.accountToken }); }
   /** Achievements of an account, newest first; defaults to this client's `accountToken`. */

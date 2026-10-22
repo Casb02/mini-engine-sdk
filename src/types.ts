@@ -18,12 +18,20 @@ export interface Player { id: string; name: string; connected: boolean; ready?: 
 export interface RoomSet { id: string; kind: string; title: string }
 export interface Snapshot<PublicState = Json, Settings = Record<string, Json>, PrivateState = Json> {
   code: string; game_id: string; status: Lifecycle; version: number; max_players: number;
+  /** The uploaded release the room runs; absent for built-in games. */
+  game_version?: string | null;
   host_connected: boolean; players: Player[]; public_state: PublicState; settings: Settings;
   runtime?: 'host' | 'server'; config?: RoomConfig; round_id?: string;
   /** `null` when the room plays with the game's own data. */
   set?: RoomSet | null;
   you: { role: Role; player_id?: string | null };
   host_state?: Json; player_states?: Record<string, Json>; private_state?: PrivateState;
+}
+/** What `roomInfo()` shows before joining: no players, no state. */
+export interface RoomInfo {
+  code: string; game_id: string; game_version?: string | null; status: Lifecycle;
+  player_count: number; max_players: number; runtime?: 'host' | 'server'; config?: RoomConfig;
+  set?: RoomSet | null;
 }
 export interface SettingsProperty {
   type: 'integer' | 'number' | 'string' | 'boolean'; enum?: Json[];
