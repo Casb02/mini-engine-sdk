@@ -1,4 +1,4 @@
-import type { Account, AccountSession, AccountStats, CreateRoomOptions, Json, Manifest, RoomCredentials, Snapshot, RoomConfig, Lifecycle } from './types.js';
+import type { Account, AccountAchievement, AccountSession, AccountStats, CreateRoomOptions, Json, JsonCompatible, Manifest, NewSet, RoomCredentials, RoomInfo, SavedSet, SetFilter, SetSummary, Snapshot } from './types.js';
 
 export class MiniEngineError extends Error {
   constructor(message: string, public code = 'client_error', public status?: number) {
@@ -8,6 +8,9 @@ export class MiniEngineError extends Error {
 }
 export interface HttpOptions extends RequestInit { token?: string }
 export interface ApiClientOptions { baseUrl?: string; accountToken?: string; fetch?: typeof fetch }
+/** The Cloudflare Turnstile widget's token; `accountConfig()` gives the site key to render it with. */
+export interface TurnstileOptions { turnstileToken?: string }
+const turnstileHeaders = (token?: string): Record<string, string> => token ? { 'X-Turnstile-Token': token } : {};
 export const normalizeCode = (code: string): string => code.trim().toUpperCase();
 export function endpoint(baseUrl: string, path: string): string {
   return baseUrl ? `${baseUrl.replace(/\/+$/, '')}${path}` : path;
@@ -49,36 +52,69 @@ export class ApiClient {
   getRoom<P = Json>(code: string, token: string): Promise<Snapshot<P>> {
     return this.call(this.roomPath(code), { token });
   }
-  roomInfo(code: string): Promise<{ code: string; game_id: string; status: Lifecycle; player_count: number; max_players: number; runtime?: string; config?: RoomConfig }> {
+  roomInfo(code: string): Promise<RoomInfo> {
     return this.call(`${this.roomPath(code)}/info`);
   }
   gameData<T = unknown>(code: string, token: string): Promise<T> { return this.call(`${this.roomPath(code)}/game-data`, { token }); }
   displayToken(code: string, token: string): Promise<{ token: string }> {
     return this.call(`${this.roomPath(code)}/display-token`, { method: 'POST', token });
   }
-  /** Creates an account; the engine mails a confirmation link to `email`. */
-  register(input: { username: string; password: string; display_name: string; email: string }): Promise<AccountSession> {
-    return this.call('/accounts/register', { method: 'POST', body: JSON.stringify(input) });
+  /**
+   * Creates an account; the engine mails a confirmation link to `email`.
+   * When the engine runs Turnstile, pass the widget token rendered with action `register`.
+   */
+  register(input: { username: string; password: string; display_name: string; email: string }, { turnstileToken }: TurnstileOptions = {}): Promise<AccountSession> {
+    return this.call('/accounts/register', { method: 'POST', headers: turnstileHeaders(turnstileToken), body: JSON.stringify(input) });
   }
   /** Confirms an address with the token from the `?verify=` link; needs that account's `accountToken`. */
   verifyEmail(token: string): Promise<{ account: Account }> {
     return this.call('/accounts/verify-email', { method: 'POST', token: this.accountToken, body: JSON.stringify({ token }) });
   }
-  /** Adds or changes the account address, or resends the confirmation link. */
-  setEmail(email: string): Promise<{ account: Account; verification_sent: boolean }> {
-    return this.call('/accounts/email', { method: 'PUT', token: this.accountToken, body: JSON.stringify({ email }) });
+  /** Adds or changes the account address, or resends the confirmation link; a Turnstile token uses action `email`. */
+  setEmail(email: string, { turnstileToken }: TurnstileOptions = {}): Promise<{ account: Account; verification_sent: boolean }> {
+    return this.call('/accounts/email', { method: 'PUT', token: this.accountToken, headers: turnstileHeaders(turnstileToken), body: JSON.stringify({ email }) });
   }
   login(input: { username: string; password: string }): Promise<AccountSession> {
     return this.call('/accounts/login', { method: 'POST', body: JSON.stringify(input) });
   }
+  /** Public account settings; `turnstile_site_key` is `null` when the engine does not check for robots. */
+  accountConfig(): Promise<{ turnstile_site_key: string | null }> { return this.call('/accounts/config'); }
   me(): Promise<Account> { return this.call('/accounts/me', { token: this.accountToken }); }
   stats(): Promise<AccountStats> { return this.call('/accounts/stats', { token: this.accountToken }); }
+  /** Achievements of an account, newest first; defaults to this client's `accountToken`. */
+  achievements(accountToken = this.accountToken): Promise<{ achievements: AccountAchievement[] }> {
+    return this.call('/accounts/achievements', { token: accountToken });
+  }
+  /** The account's sets without their content, most recently changed first. */
+  listSets(filter: SetFilter = {}): Promise<{ sets: SetSummary[] }> {
+    const query = new URLSearchParams();
+    if (filter.game_id !== undefined) query.set('game_id', filter.game_id);
+    if (filter.kind !== undefined) query.set('kind', filter.kind);
+    const search = query.toString();
+    return this.call(`/accounts/sets${search ? `?${search}` : ''}`, { token: this.accountToken });
+  }
+  /** One of the account's sets with its content; another account's set answers 404 `set_not_found`. */
+  getSet<Data = Json>(id: string): Promise<SavedSet<Data>> {
+    return this.call(this.setPath(id), { token: this.accountToken });
+  }
+  /** Saves a set; the kind must be declared by the game's active release and the data must match its schema. */
+  createSet<Data = Json>(input: NewSet<Data> & { data: JsonCompatible<Data> }): Promise<SavedSet<Data>> {
+    return this.call('/accounts/sets', { method: 'POST', token: this.accountToken, body: JSON.stringify(input) });
+  }
+  /** Replaces the title and content of a set; rooms that already use it keep their copy. */
+  updateSet<Data = Json>(id: string, input: { title: string; data: Data & JsonCompatible<Data> }): Promise<SavedSet<Data>> {
+    return this.call(this.setPath(id), { method: 'PUT', token: this.accountToken, body: JSON.stringify(input) });
+  }
+  deleteSet(id: string): Promise<null> {
+    return this.call(this.setPath(id), { method: 'DELETE', token: this.accountToken });
+  }
   async logout(): Promise<null> {
     const result = await this.call<null>('/accounts/logout', { method: 'POST', token: this.accountToken });
     this.accountToken = undefined;
     return result;
   }
   private roomPath(code: string): string { return `/rooms/${encodeURIComponent(normalizeCode(code))}`; }
+  private setPath(id: string): string { return `/accounts/sets/${encodeURIComponent(id)}`; }
 }
 
 /** Legacy helpers use the current origin; use ApiClient for a separate server or account. */

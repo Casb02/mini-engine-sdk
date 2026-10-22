@@ -32,7 +32,7 @@ if (args.length === 1 && ['--help', '-h'].includes(args[0])) {
       await rm(directory, { recursive: true, force: true });
       throw error;
     }
-    console.log(`Created ${slug} in ${directory}\n\nPlace this directory in your engine's games directory, restart the engine, and select it in /demo.\nRead ${join(directory, 'README.md')} to customize your game.`);
+    console.log(`Created ${slug} in ${directory}\n\nPlace this directory in your engine's games directory, restart the engine, and select it in /home.\nRead ${join(directory, 'README.md')} to customize your game.`);
   } catch (error) {
     console.error(`create-mini-game: ${error.message}`);
     process.exitCode = 1;

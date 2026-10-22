@@ -21,6 +21,22 @@ const attach = options => {
   return {client, socket};
 };
 
+test('ApiClient sends a Turnstile token only when one is given', async () => {
+  const calls = [];
+  const fetch = async (url, options) => { calls.push({url, ...options}); return {ok:true, status:200, json:async()=>({})}; };
+  const api = new ApiClient({baseUrl:'https://party.test', accountToken:'account', fetch});
+  const dani = {username:'dani', password:'correct horse battery', display_name:'Dani', email:'dani@example.com'};
+  await api.register(dani);
+  await api.register(dani, {turnstileToken:'widget'});
+  await api.setEmail('dani@example.com', {turnstileToken:'again'});
+  await api.accountConfig();
+  assert.equal(calls[0].headers.has('X-Turnstile-Token'), false);
+  assert.equal(calls[1].headers.get('X-Turnstile-Token'), 'widget');
+  assert.equal(calls[2].headers.get('X-Turnstile-Token'), 'again');
+  assert.equal(calls[2].headers.get('Authorization'), 'Bearer account');
+  assert.equal(calls[3].url, 'https://party.test/api/v1/accounts/config');
+});
+
 test('ApiClient scopes account bearer and legacy helpers keep relative endpoints', async () => {
   const calls = [];
   const fetch = async (url, options) => { calls.push({url, ...options}); return {ok:true, status:200, json:async()=>({code:'ABCDEF'})}; };
@@ -141,4 +157,259 @@ test('room sessions keep compatible keys and reject corrupt credentials', () => 
   assert.equal(loadSession('abcdef','player',storage),null);
   removeSession('abcdef','host',storage);
   assert.equal(loadSession('abcdef','host',storage),null);
+});
+
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+const sender = id => ({role:'player', player_id:id});
+
+test('realtime emit is fire and forget, targeted and never queued while offline', async () => {
+  const offline = new MiniEngine({code:'ABCDEF', token:'secret', WebSocket:Socket, baseUrl:'https://party.test'});
+  assert.equal(offline.realtime.emit('buzz'), false);
+  const {client,socket}=attach({reconnectDelay:1});
+  assert.equal(client.realtime.emit('buzz', {at:1}, {to:['p1','p2'], echo:true}), true);
+  assert.equal(client.realtime.emit('pressed'), true);
+  assert.deepEqual(socket.sent.slice(-2), [
+    {type:'rt.emit', channel:'buzz', data:{at:1}, to:['p1','p2'], echo:true},
+    {type:'rt.emit', channel:'pressed', data:null},
+  ]);
+  assert.equal(client.pending.size, 0);
+  socket.close();
+  assert.equal(client.realtime.emit('buzz'), false);
+  await wait(20);
+  const next=Socket.sockets.at(-1);
+  next.open();
+  next.receive({type:'snapshot', room:snapshot(3)});
+  assert.deepEqual(next.sent, [{type:'auth', token:'secret'}]);
+  client.close();
+  assert.equal(client.realtime.emit('buzz'), false);
+});
+
+test('realtime events reach channel and wildcard listeners until unsubscribed', () => {
+  const {client,socket}=attach();
+  const seen=[];
+  const off=client.realtime.on('buzz', (data, from, ts, channel) => seen.push(['buzz', data, from, ts, channel]));
+  client.realtime.on('*', (data, from, ts, channel) => seen.push(['*', data, from.player_id, ts, channel]));
+  socket.receive({type:'rt.event', channel:'buzz', data:{x:1}, from:sender('p1'), ts:100});
+  socket.receive({type:'rt.event', channel:'emoji', data:'🎉', from:{role:'display', player_id:null}, ts:101});
+  off();
+  socket.receive({type:'rt.event', channel:'buzz', data:2, from:sender('p2'), ts:102});
+  assert.deepEqual(seen, [
+    ['buzz', {x:1}, sender('p1'), 100, 'buzz'],
+    ['*', {x:1}, 'p1', 100, 'buzz'],
+    ['*', '🎉', null, 101, 'emoji'],
+    ['*', 2, 'p2', 102, 'buzz'],
+  ]);
+  client.close();
+});
+
+test('realtime values coalesce per key, apply locally and are flushed at most every interval', async () => {
+  const {client,socket}=attach({realtime:{setInterval:25}});
+  const seen=[];
+  client.realtime.onValue('kart', (value, from, ts, key) => seen.push([key, value, from.role]));
+  client.realtime.set('kart', {x:1});
+  client.realtime.set('kart', {x:2});
+  client.realtime.set('typing', true);
+  client.realtime.set('kart', {x:3});
+  const sets=()=>socket.sent.filter(frame=>frame.type==='rt.set');
+  assert.deepEqual(sets(), [{type:'rt.set', key:'kart', value:{x:1}}]);
+  assert.deepEqual(client.realtime.value('host', 'kart'), {x:3});
+  assert.deepEqual(client.realtime.value({role:'host', player_id:null}, 'typing'), true);
+  assert.equal(seen.length, 3);
+  await wait(40);
+  assert.deepEqual(sets().slice(1), [{type:'rt.set', key:'kart', value:{x:3}}, {type:'rt.set', key:'typing', value:true}]);
+  client.realtime.set('typing', null);
+  await wait(40);
+  assert.deepEqual(sets().at(-1), {type:'rt.set', key:'typing', value:null});
+  assert.equal(client.realtime.value('host', 'typing'), undefined);
+  client.close();
+});
+
+test('realtime values follow the server, are rebuilt after reconnect and cleared on terminal close', async () => {
+  const {client,socket}=attach({reconnectDelay:1});
+  const seen=[];
+  client.realtime.onValue('*', (value, from, ts, key) => seen.push([from.player_id, key, value, ts]));
+  socket.receive({type:'rt.values', values:[{key:'kart', value:{x:1}, from:sender('p1'), ts:5}]});
+  socket.receive({type:'rt.value', key:'kart', value:{x:2}, from:sender('p2'), ts:6});
+  socket.receive({type:'rt.value', key:'cursor', value:[1,2], from:sender('p2'), ts:7});
+  socket.receive({type:'rt.value', key:'cursor', value:null, from:sender('p2'), ts:8});
+  assert.deepEqual(client.realtime.value('p1', 'kart'), {x:1});
+  assert.deepEqual(client.realtime.value(sender('p2'), 'kart'), {x:2});
+  assert.equal(client.realtime.value('p2', 'cursor'), undefined);
+  client.realtime.set('pending', 1);
+  socket.close();
+  assert.deepEqual(client.realtime.value('p1', 'kart'), {x:1});
+  await wait(20);
+  const next=Socket.sockets.at(-1);
+  next.open();
+  next.receive({type:'snapshot', room:snapshot(3)});
+  next.receive({type:'rt.values', values:[{key:'kart', value:{x:9}, from:sender('p2'), ts:20}]});
+  assert.equal(next.sent.some(frame=>frame.type==='rt.set'), false);
+  assert.equal(client.realtime.value('p1', 'kart'), undefined);
+  assert.deepEqual(client.realtime.value('p2', 'kart'), {x:9});
+  assert.deepEqual(seen.slice(-3), [['p1','kart',null,5], [null,'pending',null,seen.at(-2)[3]], ['p2','kart',{x:9},20]]);
+  next.receive({type:'rt.reset', from:{role:'host', player_id:null}, ts:30});
+  assert.deepEqual(seen.at(-1), ['p2','kart',null,30]);
+  assert.equal(client.realtime.value('p2', 'kart'), undefined);
+  next.receive({type:'rt.value', key:'kart', value:1, from:sender('p3'), ts:31});
+  client.close();
+  assert.equal(client.realtime.value('p3', 'kart'), undefined);
+});
+
+test('own values set before rt.values arrives survive that frame', async () => {
+  const client=new MiniEngine({code:'ABCDEF', token:'secret', WebSocket:Socket, baseUrl:'https://party.test', reconnectDelay:1});
+  const seen=[];
+  client.realtime.onValue('*', (value, from, ts, key) => seen.push([from.player_id, key, value]));
+  client.once('snapshot', () => client.realtime.set('ready', true));
+  client.connect();
+  const player=version => ({...snapshot(version), you:{role:'player', player_id:'p1'}});
+  const socket=Socket.sockets.at(-1);
+  socket.open();
+  socket.receive({type:'snapshot', room:player(2)});
+  socket.receive({type:'rt.values', values:[{key:'kart', value:{x:1}, from:sender('p2'), ts:5}]});
+  assert.deepEqual(socket.sent.filter(frame=>frame.type==='rt.set'), [{type:'rt.set', key:'ready', value:true}]);
+  assert.equal(client.realtime.value('p1', 'ready'), true);
+  assert.deepEqual(seen, [['p1','ready',true], ['p2','kart',{x:1}]]);
+  socket.close();
+  await wait(20);
+  const next=Socket.sockets.at(-1);
+  const after=client.waitForSnapshot().then(() => {
+    client.realtime.set('ready', null);
+    client.realtime.set('cursor', [1,2]);
+  });
+  next.open();
+  next.receive({type:'snapshot', room:player(3)});
+  await after;
+  seen.length=0;
+  next.receive({type:'rt.values', values:[{key:'ready', value:true, from:sender('p1'), ts:6}, {key:'kart', value:{x:2}, from:sender('p2'), ts:7}]});
+  assert.equal(client.realtime.value('p1', 'ready'), undefined);
+  assert.deepEqual(client.realtime.value('p1', 'cursor'), [1,2]);
+  assert.deepEqual(client.realtime.value('p2', 'kart'), {x:2});
+  assert.deepEqual(seen, [['p2','kart',{x:2}]]);
+  await wait(40);
+  assert.deepEqual(next.sent.filter(frame=>frame.type==='rt.set'), [{type:'rt.set', key:'ready', value:null}, {type:'rt.set', key:'cursor', value:[1,2]}]);
+  client.close();
+});
+
+test('reset is sent as one frame, drops unsent values and throttling is an event', async () => {
+  const {client,socket}=attach({realtime:{setInterval:50}});
+  client.realtime.set('a', 1);
+  client.realtime.set('a', 2);
+  client.realtime.reset();
+  await wait(70);
+  assert.deepEqual(socket.sent.filter(frame=>frame.type.startsWith('rt.')), [{type:'rt.set', key:'a', value:1}, {type:'rt.reset'}]);
+  const throttled=[];
+  client.on('throttled', event => throttled.push(event));
+  socket.receive({type:'rt.throttled', dropped:12});
+  assert.deepEqual(throttled, [{dropped:12}]);
+  client.close();
+});
+
+test('values the host sets after reset survive its own rt.reset echo', async () => {
+  const {client,socket}=attach({realtime:{setInterval:0}});
+  const seen=[];
+  client.realtime.onValue('*', (value, from, ts, key) => seen.push([from.role, from.player_id, key, value]));
+  socket.receive({type:'rt.values', values:[{key:'phase', value:'lobby', from:{role:'host', player_id:null}, ts:1}, {key:'kart', value:{x:1}, from:sender('p1'), ts:2}]});
+  client.realtime.set('score', 3);
+  seen.length=0;
+  client.realtime.reset();
+  client.realtime.set('phase', 'start');
+  await wait(5);
+  assert.deepEqual(socket.sent.filter(frame=>frame.type.startsWith('rt.')).slice(-2), [{type:'rt.reset'}, {type:'rt.set', key:'phase', value:'start'}]);
+  seen.length=0;
+  socket.receive({type:'rt.reset', from:{role:'host', player_id:null}, ts:5});
+  assert.equal(client.realtime.value('host', 'phase'), 'start');
+  assert.equal(client.realtime.value('host', 'score'), undefined);
+  assert.equal(client.realtime.value('p1', 'kart'), undefined);
+  assert.deepEqual(seen, [['host',null,'score',null], ['player','p1','kart',null]]);
+  client.realtime.reset();
+  client.realtime.set('phase', 'round-2');
+  client.realtime.reset();
+  client.realtime.set('turn', 'p2');
+  socket.receive({type:'rt.reset', from:{role:'host', player_id:null}, ts:6});
+  socket.receive({type:'rt.reset', from:{role:'host', player_id:null}, ts:7});
+  assert.equal(client.realtime.value('host', 'phase'), undefined);
+  assert.equal(client.realtime.value('host', 'turn'), 'p2');
+  socket.receive({type:'rt.reset', from:{role:'host', player_id:null}, ts:8});
+  assert.equal(client.realtime.value('host', 'turn'), undefined, 'a reset this connection did not send clears everything');
+  client.close();
+});
+
+test('a player cannot keep values through a reset it never sent', () => {
+  const client=new MiniEngine({code:'ABCDEF', token:'secret', WebSocket:Socket, baseUrl:'https://party.test', realtime:{setInterval:0}}).connect();
+  const socket=Socket.sockets.at(-1);
+  socket.open();
+  socket.receive({type:'snapshot', room:{...snapshot(2), you:{role:'player', player_id:'p1'}}});
+  socket.receive({type:'rt.values', values:[]});
+  client.realtime.reset();
+  client.realtime.set('ready', true);
+  socket.receive({type:'rt.reset', from:{role:'host', player_id:null}, ts:5});
+  assert.equal(client.realtime.value('p1', 'ready'), undefined);
+  client.close();
+});
+
+test('award is a correlated host command and achievements are an event', async () => {
+  const {client,socket}=attach();
+  const pending=client.award('p1', 'snelste-vinger');
+  const frame=socket.sent.at(-1);
+  assert.deepEqual(frame, {type:'award', player_id:'p1', achievement_id:'snelste-vinger', request_id:frame.request_id});
+  socket.receive({type:'ack', request_id:frame.request_id});
+  assert.deepEqual(await pending, {type:'ack', request_id:frame.request_id});
+  const refused=client.award('p2', 'onbekend');
+  socket.receive({type:'error', request_id:socket.sent.at(-1).request_id, error:{code:'achievement_unknown', message:'Onbekend'}});
+  await assert.rejects(refused, error=>error.code==='achievement_unknown');
+  const earned=[];
+  client.on('achievement', event => earned.push(event));
+  const achievement={id:'snelste-vinger', title:'Snelste vinger', description:'Druk als eerste.'};
+  socket.receive({type:'achievement', player_id:'p1', achievement});
+  socket.receive({type:'achievement', player_id:'p1'});
+  assert.deepEqual(earned, [{player_id:'p1', achievement}]);
+  assert.equal(client.room.version, 2, 'an achievement is not a snapshot');
+  client.close();
+  await assert.rejects(client.award('p1', 'snelste-vinger'), error=>error.code==='not_connected');
+});
+
+test('achievements use the account bearer, explicit or from the client', async () => {
+  const calls=[];
+  const body={achievements:[{game_id:'jeopardy', game_title:'Jeopardy', id:'winnaar', title:'Winnaar', description:'Win een show met je team.', source:'server', awarded_at:1761140000}]};
+  const fetch=async(url, options)=>{ calls.push({url, ...options}); return {ok:true, status:200, json:async()=>body}; };
+  const api=new ApiClient({baseUrl:'https://party.test', accountToken:'account', fetch});
+  assert.deepEqual(await api.achievements(), body);
+  await api.achievements('other-account');
+  assert.equal(calls[0].url, 'https://party.test/api/v1/accounts/achievements');
+  assert.equal(calls[0].method, undefined);
+  assert.equal(calls[0].headers.get('Authorization'), 'Bearer account');
+  assert.equal(calls[1].headers.get('Authorization'), 'Bearer other-account');
+});
+
+test('sets use the account bearer and their own routes', async () => {
+  const calls=[];
+  const replies=[{sets:[]}, {sets:[]}, {id:'s 1', data:{categories:[]}}, {id:'s1'}, {id:'s1'}, null];
+  const fetch=async(url, options)=>{ calls.push({url, ...options}); const body=replies.shift(); return body===null ? {ok:true,status:204} : {ok:true,status:200,json:async()=>body}; };
+  const api=new ApiClient({baseUrl:'https://party.test', accountToken:'account', fetch});
+  await api.listSets();
+  await api.listSets({game_id:'jeopardy', kind:'board'});
+  assert.deepEqual(await api.getSet('s 1'), {id:'s 1', data:{categories:[]}});
+  const board={categories:[{title:'Films', clues:[{question:'Wie?', answer:'Dani.'}]}]};
+  await api.createSet({game_id:'jeopardy', kind:'board', title:"Dani's filmavond", data:board});
+  await api.updateSet('s1', {title:'Filmavond', data:board});
+  assert.equal(await api.deleteSet('s1'), null);
+  assert.deepEqual(calls.map(call=>[call.method ?? 'GET', call.url]), [
+    ['GET', 'https://party.test/api/v1/accounts/sets'],
+    ['GET', 'https://party.test/api/v1/accounts/sets?game_id=jeopardy&kind=board'],
+    ['GET', 'https://party.test/api/v1/accounts/sets/s%201'],
+    ['POST', 'https://party.test/api/v1/accounts/sets'],
+    ['PUT', 'https://party.test/api/v1/accounts/sets/s1'],
+    ['DELETE', 'https://party.test/api/v1/accounts/sets/s1'],
+  ]);
+  assert.ok(calls.every(call=>call.headers.get('Authorization')==='Bearer account'));
+  assert.deepEqual(JSON.parse(calls[3].body), {game_id:'jeopardy', kind:'board', title:"Dani's filmavond", data:board});
+  assert.deepEqual(JSON.parse(calls[4].body), {title:'Filmavond', data:board});
+  await api.createRoom({game_id:'jeopardy', set_id:'s1'});
+  assert.equal(JSON.parse(calls.at(-1).body).set_id, 's1');
+  assert.equal(calls.at(-1).headers.get('Authorization'), 'Bearer account');
+});
+
+test('set errors keep their server code', async () => {
+  const api=new ApiClient({accountToken:'account', fetch:async()=>({ok:false,status:409,json:async()=>({error:{code:'quota_sets',message:'Je hebt al 50 sets.'}})})});
+  await assert.rejects(api.createSet({game_id:'jeopardy', kind:'board', title:'Vol', data:{}}), error=>error.code==='quota_sets'&&error.status===409);
 });

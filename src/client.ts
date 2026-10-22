@@ -1,5 +1,5 @@
 import { endpoint, MiniEngineError, normalizeCode } from './api.js';
-import type { Ack, ActionEnvelope, ConnectionStatus, Json, Lifecycle, MutableRoomConfig, Snapshot, StateUpdate } from './types.js';
+import type { AchievementEarned, Ack, ActionEnvelope, ConnectionStatus, Json, Lifecycle, MutableRoomConfig, Realtime, RealtimeEmitOptions, RealtimeEventHandler, RealtimeFrom, RealtimeThrottled, RealtimeValueHandler, Snapshot, StateUpdate } from './types.js';
 
 export interface SocketLike {
   readonly readyState: number;
@@ -13,14 +13,172 @@ export interface SocketLike {
 export interface MiniEngineOptions {
   code: string; token: string; baseUrl?: string; reconnectDelay?: number; requestTimeout?: number;
   WebSocket?: new (url: string) => SocketLike;
+  /** `setInterval`: send coalesced realtime values at most this often, in ms (default 33). */
+  realtime?: { setInterval?: number };
 }
 interface Pending { resolve: (ack: Ack) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }
 interface Events<P, S, V> {
-  snapshot: Snapshot<P, S, V>; action: ActionEnvelope; status: ConnectionStatus; error: Error; closed: string;
+  snapshot: Snapshot<P, S, V>; action: ActionEnvelope; status: ConnectionStatus; error: Error; closed: string; throttled: RealtimeThrottled;
+  achievement: AchievementEarned;
 }
 export interface WaitOptions { timeout?: number; signal?: AbortSignal }
 const transientReasons = new Set(['host_lagged', 'heartbeat_timeout', 'rate_limit', 'server_shutdown']);
 let actionSequence = 0;
+interface RealtimeLink { send(frame: Record<string, Json>): boolean; self(): RealtimeFrom | null }
+interface RealtimeEntry { value: Json; from: RealtimeFrom; ts: number }
+const senderOf = (from: string | RealtimeFrom): string =>
+  typeof from === 'string' ? from : from.role === 'player' ? String(from.player_id ?? '') : from.role;
+const fromOf = (value: unknown): RealtimeFrom => {
+  const from = (value && typeof value === 'object' ? value : {}) as Partial<RealtimeFrom>;
+  return { role: from.role ?? 'player', player_id: from.player_id ?? null };
+};
+function call<F extends (...args: never[]) => void>(handlers: Iterable<F> | undefined, ...args: Parameters<F>): void {
+  for (const fn of [...(handlers ?? [])]) {
+    try { fn(...args); } catch (error) { console.error(error); }
+  }
+}
+
+class RealtimeChannel implements Realtime {
+  private readonly events = new Map<string, Set<RealtimeEventHandler>>();
+  private readonly watchers = new Map<string, Set<RealtimeValueHandler>>();
+  private values = new Map<string, Map<string, RealtimeEntry>>();
+  private readonly pending = new Map<string, Json>();
+  /** Keys this connection set before its `rt.values` arrived; that frame cannot know them. */
+  private readonly early = new Set<string>();
+  private synced = false;
+  /** Own `rt.reset` frames still to come back, and the keys set since the last one was sent. */
+  private resets = 0;
+  private readonly kept = new Set<string>();
+  private timer?: ReturnType<typeof setTimeout>;
+  private flushed = 0;
+  constructor(private readonly link: RealtimeLink, private readonly interval: number) {}
+  emit(channel: string, data: Json = null, { to, echo }: RealtimeEmitOptions = {}): boolean {
+    const frame: Record<string, Json> = { type: 'rt.emit', channel, data };
+    if (to !== undefined) frame.to = to;
+    if (echo) frame.echo = true;
+    return this.link.send(frame);
+  }
+  on(channel: string, fn: RealtimeEventHandler): () => void { return listen(this.events, channel, fn); }
+  onValue(key: string, fn: RealtimeValueHandler): () => void { return listen(this.watchers, key, fn); }
+  value(from: string | RealtimeFrom, key: string): Json | undefined { return this.values.get(senderOf(from))?.get(key)?.value; }
+  set(key: string, value: Json): void {
+    const self = this.link.self();
+    if (!self) return;
+    if (!this.synced) this.early.add(key);
+    if (this.resets) this.kept.add(key);
+    this.pending.set(key, value);
+    this.store(key, value, self, Date.now());
+    if (this.timer !== undefined) return;
+    const wait = this.flushed + this.interval - Date.now();
+    if (wait <= 0) this.flush();
+    else this.timer = setTimeout(() => this.flush(), wait);
+  }
+  reset(): void {
+    this.unsent();
+    if (this.link.send({ type: 'rt.reset' }) && this.link.self()?.role === 'host') {
+      this.resets++;
+      this.kept.clear();
+    }
+  }
+  private unsent(): void {
+    clearTimeout(this.timer);
+    this.timer = undefined;
+    this.pending.clear();
+  }
+  private flush(): void {
+    clearTimeout(this.timer);
+    this.timer = undefined;
+    this.flushed = Date.now();
+    for (const [key, value] of this.pending) this.link.send({ type: 'rt.set', key, value });
+    this.pending.clear();
+  }
+  private store(key: string, value: Json, from: RealtimeFrom, ts: number): void {
+    const sender = senderOf(from);
+    if (value === null) {
+      this.values.get(sender)?.delete(key);
+      if (this.values.get(sender)?.size === 0) this.values.delete(sender);
+    } else {
+      if (!this.values.has(sender)) this.values.set(sender, new Map());
+      this.values.get(sender)!.set(key, { value, from, ts });
+    }
+    this.notify(key, value, from, ts);
+  }
+  private notify(key: string, value: Json, from: RealtimeFrom, ts: number): void {
+    call(this.watchers.get(key), value, from, ts, key);
+    call(this.watchers.get('*'), value, from, ts, key);
+  }
+  receive(message: Record<string, unknown>): void {
+    const ts = Number(message.ts) || 0;
+    if (message.type === 'rt.event') {
+      const channel = String(message.channel);
+      const from = fromOf(message.from);
+      call(this.events.get(channel), (message.data ?? null) as Json, from, ts, channel);
+      call(this.events.get('*'), (message.data ?? null) as Json, from, ts, channel);
+    } else if (message.type === 'rt.value') {
+      this.store(String(message.key), (message.value ?? null) as Json, fromOf(message.from), ts);
+    } else if (message.type === 'rt.values' && Array.isArray(message.values)) {
+      const previous = this.values;
+      this.values = new Map();
+      for (const item of message.values as Record<string, unknown>[]) {
+        const from = fromOf(item?.from);
+        if (item?.value === null || item?.value === undefined) continue;
+        if (!this.values.has(senderOf(from))) this.values.set(senderOf(from), new Map());
+        this.values.get(senderOf(from))!.set(String(item.key), { value: item.value as Json, from, ts: Number(item.ts) || 0 });
+      }
+      const self = this.link.self();
+      if (self) {
+        const sender = senderOf(self);
+        for (const key of this.early) {
+          const entry = previous.get(sender)?.get(key);
+          if (entry) {
+            if (!this.values.has(sender)) this.values.set(sender, new Map());
+            this.values.get(sender)!.set(key, entry);
+          } else this.values.get(sender)?.delete(key);
+        }
+        if (this.values.get(sender)?.size === 0) this.values.delete(sender);
+      }
+      this.early.clear();
+      this.synced = true;
+      for (const [sender, entries] of previous) {
+        for (const [key, entry] of entries) if (!this.values.get(sender)?.has(key)) this.notify(key, null, entry.from, entry.ts);
+      }
+      for (const [sender, entries] of this.values) {
+        for (const [key, entry] of entries) if (previous.get(sender)?.get(key) !== entry) this.notify(key, entry.value, entry.from, entry.ts);
+      }
+    } else if (message.type === 'rt.reset') {
+      const self = this.link.self();
+      const own = self && this.resets && senderOf(fromOf(message.from)) === senderOf(self) ? senderOf(self) : null;
+      const previous = this.values;
+      this.values = new Map();
+      for (const [sender, entries] of previous) {
+        for (const [key, entry] of entries) {
+          if (sender === own && this.kept.has(key)) {
+            if (!this.values.has(sender)) this.values.set(sender, new Map());
+            this.values.get(sender)!.set(key, entry);
+          } else this.notify(key, null, entry.from, ts);
+        }
+      }
+      if (own !== null && --this.resets === 0) this.kept.clear();
+    }
+  }
+  /** Forget unsent values; they are never sent after a reconnect. */
+  drop(): void {
+    this.unsent();
+    this.early.clear();
+    this.synced = false;
+    this.resets = 0;
+    this.kept.clear();
+  }
+  clear(): void {
+    this.drop();
+    this.values = new Map();
+  }
+}
+function listen<F>(map: Map<string, Set<F>>, name: string, fn: F): () => void {
+  if (!map.has(name)) map.set(name, new Set());
+  map.get(name)!.add(fn);
+  return () => { map.get(name)?.delete(fn); };
+}
 function actionId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${++actionSequence}`;
 }
@@ -32,6 +190,9 @@ export class MiniEngine<P = Json, S = Record<string, Json>, V = Json> {
   room: Snapshot<P, S, V> | null = null;
   connected = false;
   readonly pending = new Map<string, Pending>();
+  /** Ephemeral events and values for this room. */
+  readonly realtime: Realtime;
+  private readonly live: RealtimeChannel;
   private readonly options: MiniEngineOptions;
   private readonly listeners = new Map<string, Set<(value: never) => void>>();
   private readonly waiters = new Set<(error: Error) => void>();
@@ -46,6 +207,11 @@ export class MiniEngine<P = Json, S = Record<string, Json>, V = Json> {
     this.options = options;
     this.code = normalizeCode(options.code);
     this.token = options.token;
+    this.live = new RealtimeChannel({
+      send: frame => this.sendRealtime(frame),
+      self: () => this.connected && this.room ? { role: this.room.you.role, player_id: this.room.you.player_id ?? null } : null,
+    }, Math.max(0, options.realtime?.setInterval ?? 33));
+    this.realtime = this.live;
   }
   on<K extends keyof Events<P, S, V>>(type: K, fn: (value: Events<P, S, V>[K]) => void): () => void {
     if (!this.listeners.has(type)) this.listeners.set(type, new Set());
@@ -130,12 +296,18 @@ export class MiniEngine<P = Json, S = Record<string, Json>, V = Json> {
           this.emit('closed', reason);
         }
       } else if (message.type === 'action') this.emit('action', message as unknown as ActionEnvelope);
+      else if (message.type === 'rt.throttled') this.emit('throttled', { dropped: Number(message.dropped) || 0 });
+      else if (message.type === 'achievement' && message.achievement && typeof message.achievement === 'object') {
+        this.emit('achievement', { player_id: String(message.player_id), achievement: message.achievement as AchievementEarned['achievement'] });
+      }
+      else if (typeof message.type === 'string' && message.type.startsWith('rt.')) this.live.receive(message);
     };
     socket.onerror = () => {}; // Close drives request rejection and backoff.
     socket.onclose = () => {
       if (this.socket !== socket) return;
       this.socket = undefined;
       this.connected = false;
+      this.live.drop();
       this.rejectPending(new MiniEngineError('Verbinding verbroken. Probeer opnieuw zodra je verbonden bent.', 'disconnected'));
       if (this.stopped) return;
       this.emit('status', 'reconnecting');
@@ -147,6 +319,10 @@ export class MiniEngine<P = Json, S = Record<string, Json>, V = Json> {
   private rejectPending(error: Error): void {
     for (const pending of this.pending.values()) { clearTimeout(pending.timer); pending.reject(error); }
     this.pending.clear();
+  }
+  private sendRealtime(frame: Record<string, Json>): boolean {
+    if (!this.connected || this.socket?.readyState !== 1) return false;
+    try { this.socket.send(JSON.stringify(frame)); return true; } catch { return false; }
   }
   request(type: string, payload: Record<string, unknown> = {}): Promise<Ack> {
     if (!this.connected || this.socket?.readyState !== 1) return Promise.reject(new MiniEngineError('Je bent nog niet verbonden.', 'not_connected'));
@@ -170,6 +346,8 @@ export class MiniEngine<P = Json, S = Record<string, Json>, V = Json> {
   setSettings(settings: S): Promise<Ack> { return this.request('settings', { expected_version: this.room?.version, settings }); }
   ready(ready = true): Promise<Ack> { return this.request('ready', { ready }); }
   configure(config: MutableRoomConfig): Promise<Ack> { return this.request('configure', { expected_version: this.room?.version, config }); }
+  /** Host of a browser-host game: grant a declared achievement to a seated player with an account. Awarding twice still acks. */
+  award(playerId: string, achievementId: string): Promise<Ack> { return this.request('award', { player_id: playerId, achievement_id: achievementId }); }
   waitForSnapshot(predicate: (room: Snapshot<P, S, V>) => boolean = () => true, { timeout = this.options.requestTimeout ?? 10000, signal }: WaitOptions = {}): Promise<Snapshot<P, S, V>> {
     if (signal?.aborted) return Promise.reject(signal.reason ?? new DOMException('Aborted', 'AbortError'));
     if (this.connected && this.room && predicate(this.room)) return Promise.resolve(this.room);
@@ -191,6 +369,7 @@ export class MiniEngine<P = Json, S = Record<string, Json>, V = Json> {
     this.connected = false;
     const error = new MiniEngineError('Verbinding gesloten.', 'closed');
     this.rejectPending(error);
+    this.live.clear();
     for (const fail of [...this.waiters]) fail(error);
     const socket = this.socket;
     this.socket = undefined;
