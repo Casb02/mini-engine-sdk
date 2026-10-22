@@ -7,10 +7,14 @@ export type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'di
 export interface RoomConfig { host_mode: HostMode; display_enabled: boolean; allow_late_join: boolean }
 export type MutableRoomConfig = Partial<Pick<RoomConfig, 'display_enabled' | 'allow_late_join'>>;
 export interface Player { id: string; name: string; connected: boolean; ready?: boolean; account_id?: string | null }
+/** The saved set a room plays with. Public in every snapshot; only the host reads the content, through `gameData()`. */
+export interface RoomSet { id: string; kind: string; title: string }
 export interface Snapshot<PublicState = Json, Settings = Record<string, Json>, PrivateState = Json> {
   code: string; game_id: string; status: Lifecycle; version: number; max_players: number;
   host_connected: boolean; players: Player[]; public_state: PublicState; settings: Settings;
   runtime?: 'host' | 'server'; config?: RoomConfig; round_id?: string;
+  /** `null` when the room plays with the game's own data. */
+  set?: RoomSet | null;
   you: { role: Role; player_id?: string | null };
   host_state?: Json; player_states?: Record<string, Json>; private_state?: PrivateState;
 }
@@ -28,6 +32,24 @@ export interface AchievementDefinition {
   /** 1–160 characters. */
   description: string;
 }
+interface SetSchemaNode { title?: string; description?: string }
+/** The set schema dialect, a bounded JSON Schema subset: at most 8 levels and 256 nodes; objects forbid extra properties, arrays declare items. */
+export type SetSchema =
+  | (SetSchemaNode & { type: 'object'; properties: Record<string, SetSchema>; required?: string[]; additionalProperties: false })
+  | (SetSchemaNode & { type: 'array'; items: SetSchema; minItems?: number; maxItems?: number })
+  | (SetSchemaNode & { type: 'string'; minLength?: number; maxLength?: number; enum?: string[] })
+  | (SetSchemaNode & { type: 'integer' | 'number'; minimum?: number; maximum?: number })
+  | (SetSchemaNode & { type: 'boolean' });
+/** A kind of set players can save for a game; at most 4 per game. */
+export interface SetKind {
+  /** `^[a-z0-9][a-z0-9_-]{0,47}$`, unique within the game. */
+  id: string;
+  /** 1–60 characters. */
+  title: string;
+  /** 1–160 characters. */
+  description: string;
+  schema: SetSchema;
+}
 export interface Manifest<Settings = Record<string, Json>> {
   id: string; title: string; description: string; version: string;
   min_players: number; max_players: number; has_display: boolean;
@@ -37,9 +59,30 @@ export interface Manifest<Settings = Record<string, Json>> {
   /** Whether the game can support joins after start; omitted legacy packages default to true. */
   supports_late_join?: boolean;
   achievements?: AchievementDefinition[];
+  set_kinds?: SetKind[];
 }
 export interface RoomCredentials { code: string; token: string; role: Role; player_id?: string | null; display_token?: string }
-export interface CreateRoomOptions { game_id: string; max_players?: number; settings?: Record<string, Json>; name?: string; config?: Partial<RoomConfig> }
+export interface CreateRoomOptions {
+  game_id: string; max_players?: number; settings?: Record<string, Json>; name?: string; config?: Partial<RoomConfig>;
+  /** A set of the signed-in account for this game; needs the account token. The room keeps a copy. */
+  set_id?: string;
+}
+/** A set saved on an account, as listed: without its content. */
+export interface SetSummary {
+  id: string; game_id: string; kind: string; title: string;
+  /** Bytes of the serialized content; at most 64 KiB. */
+  size: number;
+  /** Seconds since the Unix epoch. */
+  created_at: number; updated_at: number;
+}
+export interface SavedSet<Data = Json> extends SetSummary { data: Data }
+export interface NewSet<Data = Json> {
+  game_id: string; kind: string;
+  /** 1–80 characters. */
+  title: string;
+  data: Data;
+}
+export interface SetFilter { game_id?: string; kind?: string }
 export interface Account { id: string; username: string; display_name: string; created_at: string | number; email: string | null; email_verified: boolean }
 export interface AccountSession { account: Account; token: string }
 export interface AccountStats {

@@ -1,4 +1,4 @@
-import type { Account, AccountAchievement, AccountSession, AccountStats, CreateRoomOptions, Json, Manifest, RoomCredentials, Snapshot, RoomConfig, Lifecycle } from './types.js';
+import type { Account, AccountAchievement, AccountSession, AccountStats, CreateRoomOptions, Json, Manifest, NewSet, RoomCredentials, SavedSet, SetFilter, SetSummary, Snapshot, RoomConfig, Lifecycle } from './types.js';
 
 export class MiniEngineError extends Error {
   constructor(message: string, public code = 'client_error', public status?: number) {
@@ -77,12 +77,36 @@ export class ApiClient {
   achievements(accountToken = this.accountToken): Promise<{ achievements: AccountAchievement[] }> {
     return this.call('/accounts/achievements', { token: accountToken });
   }
+  /** The account's sets without their content, most recently changed first. */
+  listSets(filter: SetFilter = {}): Promise<{ sets: SetSummary[] }> {
+    const query = new URLSearchParams();
+    if (filter.game_id !== undefined) query.set('game_id', filter.game_id);
+    if (filter.kind !== undefined) query.set('kind', filter.kind);
+    const search = query.toString();
+    return this.call(`/accounts/sets${search ? `?${search}` : ''}`, { token: this.accountToken });
+  }
+  /** One of the account's sets with its content; another account's set answers 404 `set_not_found`. */
+  getSet<Data = Json>(id: string): Promise<SavedSet<Data>> {
+    return this.call(this.setPath(id), { token: this.accountToken });
+  }
+  /** Saves a set; the kind must be declared by the game's active release and the data must match its schema. */
+  createSet<Data extends Json = Json>(input: NewSet<Data>): Promise<SavedSet<Data>> {
+    return this.call('/accounts/sets', { method: 'POST', token: this.accountToken, body: JSON.stringify(input) });
+  }
+  /** Replaces the title and content of a set; rooms that already use it keep their copy. */
+  updateSet<Data extends Json = Json>(id: string, input: { title: string; data: Data }): Promise<SavedSet<Data>> {
+    return this.call(this.setPath(id), { method: 'PUT', token: this.accountToken, body: JSON.stringify(input) });
+  }
+  deleteSet(id: string): Promise<null> {
+    return this.call(this.setPath(id), { method: 'DELETE', token: this.accountToken });
+  }
   async logout(): Promise<null> {
     const result = await this.call<null>('/accounts/logout', { method: 'POST', token: this.accountToken });
     this.accountToken = undefined;
     return result;
   }
   private roomPath(code: string): string { return `/rooms/${encodeURIComponent(normalizeCode(code))}`; }
+  private setPath(id: string): string { return `/accounts/sets/${encodeURIComponent(id)}`; }
 }
 
 /** Legacy helpers use the current origin; use ApiClient for a separate server or account. */

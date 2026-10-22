@@ -286,3 +286,36 @@ test('achievements use the account bearer, explicit or from the client', async (
   assert.equal(calls[0].headers.get('Authorization'), 'Bearer account');
   assert.equal(calls[1].headers.get('Authorization'), 'Bearer other-account');
 });
+
+test('sets use the account bearer and their own routes', async () => {
+  const calls=[];
+  const replies=[{sets:[]}, {sets:[]}, {id:'s 1', data:{categories:[]}}, {id:'s1'}, {id:'s1'}, null];
+  const fetch=async(url, options)=>{ calls.push({url, ...options}); const body=replies.shift(); return body===null ? {ok:true,status:204} : {ok:true,status:200,json:async()=>body}; };
+  const api=new ApiClient({baseUrl:'https://party.test', accountToken:'account', fetch});
+  await api.listSets();
+  await api.listSets({game_id:'jeopardy', kind:'board'});
+  assert.deepEqual(await api.getSet('s 1'), {id:'s 1', data:{categories:[]}});
+  const board={categories:[{title:'Films', clues:[{question:'Wie?', answer:'Dani.'}]}]};
+  await api.createSet({game_id:'jeopardy', kind:'board', title:"Dani's filmavond", data:board});
+  await api.updateSet('s1', {title:'Filmavond', data:board});
+  assert.equal(await api.deleteSet('s1'), null);
+  assert.deepEqual(calls.map(call=>[call.method ?? 'GET', call.url]), [
+    ['GET', 'https://party.test/api/v1/accounts/sets'],
+    ['GET', 'https://party.test/api/v1/accounts/sets?game_id=jeopardy&kind=board'],
+    ['GET', 'https://party.test/api/v1/accounts/sets/s%201'],
+    ['POST', 'https://party.test/api/v1/accounts/sets'],
+    ['PUT', 'https://party.test/api/v1/accounts/sets/s1'],
+    ['DELETE', 'https://party.test/api/v1/accounts/sets/s1'],
+  ]);
+  assert.ok(calls.every(call=>call.headers.get('Authorization')==='Bearer account'));
+  assert.deepEqual(JSON.parse(calls[3].body), {game_id:'jeopardy', kind:'board', title:"Dani's filmavond", data:board});
+  assert.deepEqual(JSON.parse(calls[4].body), {title:'Filmavond', data:board});
+  await api.createRoom({game_id:'jeopardy', set_id:'s1'});
+  assert.equal(JSON.parse(calls.at(-1).body).set_id, 's1');
+  assert.equal(calls.at(-1).headers.get('Authorization'), 'Bearer account');
+});
+
+test('set errors keep their server code', async () => {
+  const api=new ApiClient({accountToken:'account', fetch:async()=>({ok:false,status:409,json:async()=>({error:{code:'quota_sets',message:'Je hebt al 50 sets.'}})})});
+  await assert.rejects(api.createSet({game_id:'jeopardy', kind:'board', title:'Vol', data:{}}), error=>error.code==='quota_sets'&&error.status===409);
+});

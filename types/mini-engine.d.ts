@@ -23,6 +23,12 @@ export interface Player {
     ready?: boolean;
     account_id?: string | null;
 }
+/** The saved set a room plays with. Public in every snapshot; only the host reads the content, through `gameData()`. */
+export interface RoomSet {
+    id: string;
+    kind: string;
+    title: string;
+}
 export interface Snapshot<PublicState = Json, Settings = Record<string, Json>, PrivateState = Json> {
     code: string;
     game_id: string;
@@ -36,6 +42,8 @@ export interface Snapshot<PublicState = Json, Settings = Record<string, Json>, P
     runtime?: 'host' | 'server';
     config?: RoomConfig;
     round_id?: string;
+    /** `null` when the room plays with the game's own data. */
+    set?: RoomSet | null;
     you: {
         role: Role;
         player_id?: string | null;
@@ -63,6 +71,43 @@ export interface AchievementDefinition {
     /** 1–160 characters. */
     description: string;
 }
+interface SetSchemaNode {
+    title?: string;
+    description?: string;
+}
+/** The set schema dialect, a bounded JSON Schema subset: at most 8 levels and 256 nodes; objects forbid extra properties, arrays declare items. */
+export type SetSchema = (SetSchemaNode & {
+    type: 'object';
+    properties: Record<string, SetSchema>;
+    required?: string[];
+    additionalProperties: false;
+}) | (SetSchemaNode & {
+    type: 'array';
+    items: SetSchema;
+    minItems?: number;
+    maxItems?: number;
+}) | (SetSchemaNode & {
+    type: 'string';
+    minLength?: number;
+    maxLength?: number;
+    enum?: string[];
+}) | (SetSchemaNode & {
+    type: 'integer' | 'number';
+    minimum?: number;
+    maximum?: number;
+}) | (SetSchemaNode & {
+    type: 'boolean';
+});
+/** A kind of set players can save for a game; at most 4 per game. */
+export interface SetKind {
+    /** `^[a-z0-9][a-z0-9_-]{0,47}$`, unique within the game. */
+    id: string;
+    /** 1–60 characters. */
+    title: string;
+    /** 1–160 characters. */
+    description: string;
+    schema: SetSchema;
+}
 export interface Manifest<Settings = Record<string, Json>> {
     id: string;
     title: string;
@@ -87,6 +132,7 @@ export interface Manifest<Settings = Record<string, Json>> {
     /** Whether the game can support joins after start; omitted legacy packages default to true. */
     supports_late_join?: boolean;
     achievements?: AchievementDefinition[];
+    set_kinds?: SetKind[];
 }
 export interface RoomCredentials {
     code: string;
@@ -101,6 +147,34 @@ export interface CreateRoomOptions {
     settings?: Record<string, Json>;
     name?: string;
     config?: Partial<RoomConfig>;
+    /** A set of the signed-in account for this game; needs the account token. The room keeps a copy. */
+    set_id?: string;
+}
+/** A set saved on an account, as listed: without its content. */
+export interface SetSummary {
+    id: string;
+    game_id: string;
+    kind: string;
+    title: string;
+    /** Bytes of the serialized content; at most 64 KiB. */
+    size: number;
+    /** Seconds since the Unix epoch. */
+    created_at: number;
+    updated_at: number;
+}
+export interface SavedSet<Data = Json> extends SetSummary {
+    data: Data;
+}
+export interface NewSet<Data = Json> {
+    game_id: string;
+    kind: string;
+    /** 1–80 characters. */
+    title: string;
+    data: Data;
+}
+export interface SetFilter {
+    game_id?: string;
+    kind?: string;
 }
 export interface Account {
     id: string;
@@ -291,8 +365,23 @@ export declare class ApiClient {
     achievements(accountToken?: string | undefined): Promise<{
         achievements: AccountAchievement[];
     }>;
+    /** The account's sets without their content, most recently changed first. */
+    listSets(filter?: SetFilter): Promise<{
+        sets: SetSummary[];
+    }>;
+    /** One of the account's sets with its content; another account's set answers 404 `set_not_found`. */
+    getSet<Data = Json>(id: string): Promise<SavedSet<Data>>;
+    /** Saves a set; the kind must be declared by the game's active release and the data must match its schema. */
+    createSet<Data extends Json = Json>(input: NewSet<Data>): Promise<SavedSet<Data>>;
+    /** Replaces the title and content of a set; rooms that already use it keep their copy. */
+    updateSet<Data extends Json = Json>(id: string, input: {
+        title: string;
+        data: Data;
+    }): Promise<SavedSet<Data>>;
+    deleteSet(id: string): Promise<null>;
     logout(): Promise<null>;
     private roomPath;
+    private setPath;
 }
 /** Legacy helpers use the current origin; use ApiClient for a separate server or account. */
 export declare const getGames: () => Promise<{

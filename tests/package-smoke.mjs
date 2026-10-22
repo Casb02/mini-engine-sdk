@@ -18,7 +18,7 @@ try {
   const tarball = join(directory, `casb02-mini-engine-sdk-${version}.tgz`);
   await writeFile(join(directory, 'package.json'), '{"private":true,"type":"module"}\n');
   run(npm, ['install', '--ignore-scripts', '--no-audit', '--no-fund', tarball]);
-  run(process.execPath, ['--input-type=module', '-e', "import { MiniEngine, ApiClient, sessionKey } from '@casb02/mini-engine-sdk'; if (typeof MiniEngine !== 'function' || typeof ApiClient !== 'function' || sessionKey('abcdef','host') !== 'mini-engine:ABCDEF:host' || new MiniEngine({code:'ABCDEF',token:'secret'}).realtime.emit('ping') !== false || typeof new MiniEngine({code:'ABCDEF',token:'secret'}).award !== 'function' || typeof new ApiClient().achievements !== 'function') throw Error('bad exports');"]);
+  run(process.execPath, ['--input-type=module', '-e', "import { MiniEngine, ApiClient, sessionKey } from '@casb02/mini-engine-sdk'; if (typeof MiniEngine !== 'function' || typeof ApiClient !== 'function' || sessionKey('abcdef','host') !== 'mini-engine:ABCDEF:host' || new MiniEngine({code:'ABCDEF',token:'secret'}).realtime.emit('ping') !== false || typeof new MiniEngine({code:'ABCDEF',token:'secret'}).award !== 'function' || typeof new ApiClient().achievements !== 'function' || typeof new ApiClient().listSets !== 'function' || typeof new ApiClient().createSet !== 'function') throw Error('bad exports');"]);
   run(npm, ['exec', '--offline', '--', 'create-mini-game', 'packed-vote']);
   const manifest = JSON.parse(await readFile(join(directory, 'packed-vote/manifest.json'), 'utf8'));
   if (manifest.id !== 'packed-vote') throw new Error('Packed CLI did not generate the game');

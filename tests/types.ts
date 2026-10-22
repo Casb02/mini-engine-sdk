@@ -1,4 +1,4 @@
-import { ApiClient, MiniEngine, type Account, type AccountAchievement, type AchievementEarned, type Ack, type Manifest, type ActionPayloads, type Json, type Realtime, type RealtimeFrom } from '@casb02/mini-engine-sdk';
+import { ApiClient, MiniEngine, type Account, type AccountAchievement, type AchievementEarned, type Ack, type Manifest, type ActionPayloads, type Json, type Realtime, type RealtimeFrom, type RoomSet, type SavedSet, type SetKind, type SetSchema, type SetSummary, type Snapshot } from '@casb02/mini-engine-sdk';
 const api = new ApiClient({ baseUrl: 'http://localhost:3000', accountToken: 'secret' });
 void api.createRoom({ game_id: 'vote', config: { host_mode: 'moderator' } });
 const client = new MiniEngine<{ votes: Record<string, boolean> }, { prompt: string }>({ code: 'ABCDEF', token: 'secret' });
@@ -86,3 +86,44 @@ const serverSource: AccountAchievement['source'] = 'server';
 // @ts-expect-error source is server or game
 const invalidSource: AccountAchievement['source'] = 'host';
 void serverSource; void invalidSource;
+
+const boardSchema: SetSchema = { type: 'object', properties: { categories: { type: 'array', minItems: 1, maxItems: 6, items: { type: 'object', properties: { title: { type: 'string', maxLength: 40 }, clues: { type: 'array', items: { type: 'object', properties: { question: { type: 'string' }, answer: { type: 'string' } }, required: ['question', 'answer'], additionalProperties: false } } }, required: ['title', 'clues'], additionalProperties: false } } }, required: ['categories'], additionalProperties: false };
+const board: SetKind = { id: 'board', title: 'Vragenbord', description: 'Zes categorieën met vijf vragen.', schema: boardSchema };
+const withSets: Manifest = { ...manifest, set_kinds: [board] };
+void withSets;
+// @ts-expect-error objects in a set schema must forbid additional properties
+const openObject: SetSchema = { type: 'object', properties: {} };
+void openObject;
+// @ts-expect-error arrays in a set schema need items
+const bareArray: SetSchema = { type: 'array' };
+void bareArray;
+// @ts-expect-error string bounds belong to strings, not numbers
+const wrongBound: SetSchema = { type: 'integer', maxLength: 3 };
+void wrongBound;
+// @ts-expect-error a set kind needs a schema
+const noSchema: SetKind = { id: 'board', title: 'Vragenbord', description: 'Bord.' };
+void noSchema;
+void api.createRoom({ game_id: 'jeopardy', set_id: 'set-id' });
+// @ts-expect-error set ids are strings
+void api.createRoom({ game_id: 'jeopardy', set_id: 1 });
+type Board = { categories: { title: string; clues: { question: string; answer: string }[] }[] };
+void api.listSets({ game_id: 'jeopardy', kind: 'board' }).then(({ sets }) => {
+  const first: SetSummary | undefined = sets[0];
+  // @ts-expect-error listings leave out the content
+  void first?.data;
+  if (first) { const size: number = first.size; const at: number = first.updated_at; void size; void at; }
+});
+void api.listSets();
+void api.getSet<Board>('set-id').then((set: SavedSet<Board>) => { const title: string | undefined = set.data.categories[0]?.title; void title; });
+void api.createSet({ game_id: 'jeopardy', kind: 'board', title: 'Filmavond', data: { categories: [] } });
+// @ts-expect-error a new set needs a title
+void api.createSet({ game_id: 'jeopardy', kind: 'board', data: {} });
+void api.updateSet('set-id', { title: 'Filmavond', data: { categories: [] } });
+// @ts-expect-error the game and kind of a set never change
+void api.updateSet('set-id', { title: 'Filmavond', data: {}, kind: 'deck' });
+const deleted: Promise<null> = api.deleteSet('set-id');
+void deleted;
+client.on('snapshot', (room: Snapshot) => {
+  const set: RoomSet | null | undefined = room.set;
+  if (set) { const name: string = set.title; const kind: string = set.kind; void name; void kind; }
+});
