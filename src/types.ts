@@ -19,6 +19,15 @@ export interface SettingsProperty {
   minimum?: number; maximum?: number; maxLength?: number;
   title?: string; description?: string; default?: Json;
 }
+/** An achievement a game declares in its manifest; at most 50 per game. */
+export interface AchievementDefinition {
+  /** `^[a-z0-9][a-z0-9_-]{0,47}$`, unique within the game. */
+  id: string;
+  /** 1–60 characters. */
+  title: string;
+  /** 1–160 characters. */
+  description: string;
+}
 export interface Manifest<Settings = Record<string, Json>> {
   id: string; title: string; description: string; version: string;
   min_players: number; max_players: number; has_display: boolean;
@@ -27,6 +36,7 @@ export interface Manifest<Settings = Record<string, Json>> {
   runtime?: 'host' | 'server'; host_modes?: HostMode[]; default_host_mode?: HostMode;
   /** Whether the game can support joins after start; omitted legacy packages default to true. */
   supports_late_join?: boolean;
+  achievements?: AchievementDefinition[];
 }
 export interface RoomCredentials { code: string; token: string; role: Role; player_id?: string | null; display_token?: string }
 export interface CreateRoomOptions { game_id: string; max_players?: number; settings?: Record<string, Json>; name?: string; config?: Partial<RoomConfig> }
@@ -37,6 +47,20 @@ export interface AccountStats {
   games: { game_id: string; games_played: number; wins: number; total_score: number; best_score: number | null; counters: Record<string, number> }[];
   recent: Json[];
 }
+/** `server`: decided by a built-in server runtime. `game`: granted by a browser-host game itself, not verified by the server. */
+export type AchievementSource = 'server' | 'game';
+/** One achievement of the signed-in account; title and description are kept from the moment it was earned. */
+export interface AccountAchievement {
+  game_id: string;
+  /** The game's current title, or null when the engine no longer knows the game. */
+  game_title: string | null;
+  id: string; title: string; description: string;
+  source: AchievementSource;
+  /** Seconds since the Unix epoch. */
+  awarded_at: number;
+}
+/** Broadcast to the whole room when a player earns an achievement for the first time. Not versioned, not in the snapshot. */
+export interface AchievementEarned { player_id: string; achievement: AchievementDefinition }
 export interface Ack { type: 'ack'; request_id?: string }
 /** Who sent a realtime event or value. The server stamps it; clients cannot set it. */
 export interface RealtimeFrom { role: Role; player_id: string | null }

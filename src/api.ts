@@ -1,4 +1,4 @@
-import type { Account, AccountSession, AccountStats, CreateRoomOptions, Json, Manifest, RoomCredentials, Snapshot, RoomConfig, Lifecycle } from './types.js';
+import type { Account, AccountAchievement, AccountSession, AccountStats, CreateRoomOptions, Json, Manifest, RoomCredentials, Snapshot, RoomConfig, Lifecycle } from './types.js';
 
 export class MiniEngineError extends Error {
   constructor(message: string, public code = 'client_error', public status?: number) {
@@ -73,6 +73,10 @@ export class ApiClient {
   }
   me(): Promise<Account> { return this.call('/accounts/me', { token: this.accountToken }); }
   stats(): Promise<AccountStats> { return this.call('/accounts/stats', { token: this.accountToken }); }
+  /** Achievements of an account, newest first; defaults to this client's `accountToken`. */
+  achievements(accountToken = this.accountToken): Promise<{ achievements: AccountAchievement[] }> {
+    return this.call('/accounts/achievements', { token: accountToken });
+  }
   async logout(): Promise<null> {
     const result = await this.call<null>('/accounts/logout', { method: 'POST', token: this.accountToken });
     this.accountToken = undefined;

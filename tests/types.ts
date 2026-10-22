@@ -1,4 +1,4 @@
-import { ApiClient, MiniEngine, type Account, type Manifest, type ActionPayloads, type Json, type Realtime, type RealtimeFrom } from '@casb02/mini-engine-sdk';
+import { ApiClient, MiniEngine, type Account, type AccountAchievement, type AchievementEarned, type Ack, type Manifest, type ActionPayloads, type Json, type Realtime, type RealtimeFrom } from '@casb02/mini-engine-sdk';
 const api = new ApiClient({ baseUrl: 'http://localhost:3000', accountToken: 'secret' });
 void api.createRoom({ game_id: 'vote', config: { host_mode: 'moderator' } });
 const client = new MiniEngine<{ votes: Record<string, boolean> }, { prompt: string }>({ code: 'ABCDEF', token: 'secret' });
@@ -61,3 +61,28 @@ realtime.set('kart', () => 1);
 void realtime.emit('buzz', null, { from: sender });
 // @ts-expect-error the realtime implementation stays private
 import type { RealtimeChannel } from '@casb02/mini-engine-sdk';
+
+const withAchievements: Manifest = { ...manifest, achievements: [{ id: 'winnaar', title: 'Winnaar', description: 'Win een show.' }] };
+void withAchievements;
+// @ts-expect-error an achievement needs a description
+const missingDescription: Manifest = { ...manifest, achievements: [{ id: 'winnaar', title: 'Winnaar' }] };
+void missingDescription;
+const awarded: Promise<Ack> = client.award('p1', 'winnaar');
+void awarded;
+// @ts-expect-error the server finds the account from the seat; award takes no account id
+void client.award('p1', 'winnaar', 'account-id');
+client.on('achievement', ({ player_id, achievement }: AchievementEarned) => {
+  const who: string = player_id; const title: string = achievement.title; void who; void title;
+});
+void api.achievements().then(({ achievements }) => {
+  const first: AccountAchievement | undefined = achievements[0];
+  if (first) {
+    const source: 'server' | 'game' = first.source; const game: string | null = first.game_title;
+    const at: number = first.awarded_at; void source; void game; void at;
+  }
+});
+void api.achievements('other-account-token');
+const serverSource: AccountAchievement['source'] = 'server';
+// @ts-expect-error source is server or game
+const invalidSource: AccountAchievement['source'] = 'host';
+void serverSource; void invalidSource;

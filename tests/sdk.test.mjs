@@ -252,3 +252,37 @@ test('reset is sent as one frame, drops unsent values and throttling is an event
   assert.deepEqual(throttled, [{dropped:12}]);
   client.close();
 });
+
+test('award is a correlated host command and achievements are an event', async () => {
+  const {client,socket}=attach();
+  const pending=client.award('p1', 'snelste-vinger');
+  const frame=socket.sent.at(-1);
+  assert.deepEqual(frame, {type:'award', player_id:'p1', achievement_id:'snelste-vinger', request_id:frame.request_id});
+  socket.receive({type:'ack', request_id:frame.request_id});
+  assert.deepEqual(await pending, {type:'ack', request_id:frame.request_id});
+  const refused=client.award('p2', 'onbekend');
+  socket.receive({type:'error', request_id:socket.sent.at(-1).request_id, error:{code:'achievement_unknown', message:'Onbekend'}});
+  await assert.rejects(refused, error=>error.code==='achievement_unknown');
+  const earned=[];
+  client.on('achievement', event => earned.push(event));
+  const achievement={id:'snelste-vinger', title:'Snelste vinger', description:'Druk als eerste.'};
+  socket.receive({type:'achievement', player_id:'p1', achievement});
+  socket.receive({type:'achievement', player_id:'p1'});
+  assert.deepEqual(earned, [{player_id:'p1', achievement}]);
+  assert.equal(client.room.version, 2, 'an achievement is not a snapshot');
+  client.close();
+  await assert.rejects(client.award('p1', 'snelste-vinger'), error=>error.code==='not_connected');
+});
+
+test('achievements use the account bearer, explicit or from the client', async () => {
+  const calls=[];
+  const body={achievements:[{game_id:'jeopardy', game_title:'Jeopardy', id:'winnaar', title:'Winnaar', description:'Win een show met je team.', source:'server', awarded_at:1761140000}]};
+  const fetch=async(url, options)=>{ calls.push({url, ...options}); return {ok:true, status:200, json:async()=>body}; };
+  const api=new ApiClient({baseUrl:'https://party.test', accountToken:'account', fetch});
+  assert.deepEqual(await api.achievements(), body);
+  await api.achievements('other-account');
+  assert.equal(calls[0].url, 'https://party.test/api/v1/accounts/achievements');
+  assert.equal(calls[0].method, undefined);
+  assert.equal(calls[0].headers.get('Authorization'), 'Bearer account');
+  assert.equal(calls[1].headers.get('Authorization'), 'Bearer other-account');
+});

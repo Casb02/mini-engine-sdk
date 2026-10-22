@@ -54,6 +54,15 @@ export interface SettingsProperty {
     description?: string;
     default?: Json;
 }
+/** An achievement a game declares in its manifest; at most 50 per game. */
+export interface AchievementDefinition {
+    /** `^[a-z0-9][a-z0-9_-]{0,47}$`, unique within the game. */
+    id: string;
+    /** 1–60 characters. */
+    title: string;
+    /** 1–160 characters. */
+    description: string;
+}
 export interface Manifest<Settings = Record<string, Json>> {
     id: string;
     title: string;
@@ -77,6 +86,7 @@ export interface Manifest<Settings = Record<string, Json>> {
     default_host_mode?: HostMode;
     /** Whether the game can support joins after start; omitted legacy packages default to true. */
     supports_late_join?: boolean;
+    achievements?: AchievementDefinition[];
 }
 export interface RoomCredentials {
     code: string;
@@ -118,6 +128,25 @@ export interface AccountStats {
         counters: Record<string, number>;
     }[];
     recent: Json[];
+}
+/** `server`: decided by a built-in server runtime. `game`: granted by a browser-host game itself, not verified by the server. */
+export type AchievementSource = 'server' | 'game';
+/** One achievement of the signed-in account; title and description are kept from the moment it was earned. */
+export interface AccountAchievement {
+    game_id: string;
+    /** The game's current title, or null when the engine no longer knows the game. */
+    game_title: string | null;
+    id: string;
+    title: string;
+    description: string;
+    source: AchievementSource;
+    /** Seconds since the Unix epoch. */
+    awarded_at: number;
+}
+/** Broadcast to the whole room when a player earns an achievement for the first time. Not versioned, not in the snapshot. */
+export interface AchievementEarned {
+    player_id: string;
+    achievement: AchievementDefinition;
 }
 export interface Ack {
     type: 'ack';
@@ -258,6 +287,10 @@ export declare class ApiClient {
     }): Promise<AccountSession>;
     me(): Promise<Account>;
     stats(): Promise<AccountStats>;
+    /** Achievements of an account, newest first; defaults to this client's `accountToken`. */
+    achievements(accountToken?: string | undefined): Promise<{
+        achievements: AccountAchievement[];
+    }>;
     logout(): Promise<null>;
     private roomPath;
 }
@@ -302,6 +335,7 @@ interface Events<P, S, V> {
     error: Error;
     closed: string;
     throttled: RealtimeThrottled;
+    achievement: AchievementEarned;
 }
 export interface WaitOptions {
     timeout?: number;
@@ -345,6 +379,8 @@ export declare class MiniEngine<P = Json, S = Record<string, Json>, V = Json> {
     setSettings(settings: S): Promise<Ack>;
     ready(ready?: boolean): Promise<Ack>;
     configure(config: MutableRoomConfig): Promise<Ack>;
+    /** Host of a browser-host game: grant a declared achievement to a seated player with an account. Awarding twice still acks. */
+    award(playerId: string, achievementId: string): Promise<Ack>;
     waitForSnapshot(predicate?: (room: Snapshot<P, S, V>) => boolean, { timeout, signal }?: WaitOptions): Promise<Snapshot<P, S, V>>;
     close(): void;
 }

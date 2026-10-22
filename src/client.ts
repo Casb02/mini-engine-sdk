@@ -1,5 +1,5 @@
 import { endpoint, MiniEngineError, normalizeCode } from './api.js';
-import type { Ack, ActionEnvelope, ConnectionStatus, Json, Lifecycle, MutableRoomConfig, Realtime, RealtimeEmitOptions, RealtimeEventHandler, RealtimeFrom, RealtimeThrottled, RealtimeValueHandler, Snapshot, StateUpdate } from './types.js';
+import type { AchievementEarned, Ack, ActionEnvelope, ConnectionStatus, Json, Lifecycle, MutableRoomConfig, Realtime, RealtimeEmitOptions, RealtimeEventHandler, RealtimeFrom, RealtimeThrottled, RealtimeValueHandler, Snapshot, StateUpdate } from './types.js';
 
 export interface SocketLike {
   readonly readyState: number;
@@ -19,6 +19,7 @@ export interface MiniEngineOptions {
 interface Pending { resolve: (ack: Ack) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }
 interface Events<P, S, V> {
   snapshot: Snapshot<P, S, V>; action: ActionEnvelope; status: ConnectionStatus; error: Error; closed: string; throttled: RealtimeThrottled;
+  achievement: AchievementEarned;
 }
 export interface WaitOptions { timeout?: number; signal?: AbortSignal }
 const transientReasons = new Set(['host_lagged', 'heartbeat_timeout', 'rate_limit', 'server_shutdown']);
@@ -252,6 +253,9 @@ export class MiniEngine<P = Json, S = Record<string, Json>, V = Json> {
         }
       } else if (message.type === 'action') this.emit('action', message as unknown as ActionEnvelope);
       else if (message.type === 'rt.throttled') this.emit('throttled', { dropped: Number(message.dropped) || 0 });
+      else if (message.type === 'achievement' && message.achievement && typeof message.achievement === 'object') {
+        this.emit('achievement', { player_id: String(message.player_id), achievement: message.achievement as AchievementEarned['achievement'] });
+      }
       else if (typeof message.type === 'string' && message.type.startsWith('rt.')) this.live.receive(message);
     };
     socket.onerror = () => {}; // Close drives request rejection and backoff.
@@ -298,6 +302,8 @@ export class MiniEngine<P = Json, S = Record<string, Json>, V = Json> {
   setSettings(settings: S): Promise<Ack> { return this.request('settings', { expected_version: this.room?.version, settings }); }
   ready(ready = true): Promise<Ack> { return this.request('ready', { ready }); }
   configure(config: MutableRoomConfig): Promise<Ack> { return this.request('configure', { expected_version: this.room?.version, config }); }
+  /** Host of a browser-host game: grant a declared achievement to a seated player with an account. Awarding twice still acks. */
+  award(playerId: string, achievementId: string): Promise<Ack> { return this.request('award', { player_id: playerId, achievement_id: achievementId }); }
   waitForSnapshot(predicate: (room: Snapshot<P, S, V>) => boolean = () => true, { timeout = this.options.requestTimeout ?? 10000, signal }: WaitOptions = {}): Promise<Snapshot<P, S, V>> {
     if (signal?.aborted) return Promise.reject(signal.reason ?? new DOMException('Aborted', 'AbortError'));
     if (this.connected && this.room && predicate(this.room)) return Promise.resolve(this.room);
