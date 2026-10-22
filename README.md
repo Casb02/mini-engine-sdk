@@ -5,9 +5,9 @@
 
 # Miniengine✱ SDK
 
-Typed, dependency-free browser client and game scaffolder for Mini Engine v0.2. Package name: **@casb02/mini-engine-sdk**, version **0.2.0**. The source is public on GitHub under the MIT license. This package has **not been published to npm**; use the local build and tarball workflows below.
+Typed, dependency-free browser client and game scaffolder for Mini Engine v0.4. Package name: **@casb02/mini-engine-sdk**, version **0.3.0**. The source is public on GitHub under the MIT license. This package has **not been published to npm**; use the local build and tarball workflows below.
 
-Documentation (Dutch): [casb02.github.io/mini-engine-docs](https://casb02.github.io/mini-engine-docs/), including the [v0.2 API reference PDF](https://casb02.github.io/mini-engine-docs/downloads/MiniEngine-API-v0.2.pdf).
+Documentation (Dutch): [casb02.github.io/mini-engine-docs](https://casb02.github.io/mini-engine-docs/), including the [API reference PDF](https://casb02.github.io/mini-engine-docs/downloads/MiniEngine-API-v0.4.pdf).
 
 ## Build a game in five minutes
 
@@ -70,7 +70,7 @@ npm pack
 Then, in your own project:
 
 ```sh
-npm install /absolute/path/to/mini-engine-sdk/casb02-mini-engine-sdk-0.2.0.tgz
+npm install /absolute/path/to/mini-engine-sdk/casb02-mini-engine-sdk-0.3.0.tgz
 npx create-mini-game my-game --directory /path/to/engine/games/my-game
 ```
 
@@ -102,7 +102,7 @@ import { ApiClient, MiniEngine, saveSession } from '@casb02/mini-engine-sdk';
 
 const api = new ApiClient({ baseUrl: 'http://localhost:3000' });
 const { games } = await api.getGames();
-const { token } = await api.login({ username: 'cas', password: 'your-password' });
+const { token } = await api.login({ username: 'sander', password: 'your-password' });
 api.accountToken = token;
 const credentials = await api.createRoom({
   game_id: 'common-dice',
@@ -121,7 +121,7 @@ console.log(await api.stats());
 
 Accounts are optional. Omitting `accountToken` creates/joins as a guest. Create/join requests use the account bearer; room snapshot and game-data requests use their explicit room bearer. Register/login return `{account,token}` without storing credentials automatically. Set `api.accountToken` after login/register and choose your own persistence. Logout clears it after server success.
 
-`ApiClient` methods: `getGames()`, `getGame(id)`, `createRoom(options)`, `joinRoom(code,name)`, `getRoom(code,roomToken)`, `roomInfo(code)`, `gameData(code,hostToken)`, `displayToken(code,hostToken)`, `register({username,password,display_name})`, `login({username,password})`, `me()`, `stats()`, `logout()`. `displayToken` rotates the display credential and returns `{token}`; only share it through the room launcher's URL fragment.
+`ApiClient` methods: `getGames()`, `getGame(id)`, `createRoom(options)`, `joinRoom(code,name)`, `getRoom(code,roomToken)`, `roomInfo(code)`, `gameData(code,hostToken)`, `displayToken(code,hostToken)`, `register({username,password,display_name,email})`, `verifyEmail(token)`, `setEmail(email)`, `login({username,password})`, `me()`, `stats()`, `logout()`. Since engine v0.4 registration needs an email address; the engine mails a confirmation link (`?verify=<token>`), which `verifyEmail` confirms. `Account` includes `email` and `email_verified`. `displayToken` rotates the display credential and returns `{token}`; only share it through the room launcher's URL fragment.
 
 The original same-origin `http(path,{token,...fetchOptions})`, `getGames()`, `createRoom(options)` and `joinRoom(code,name)` exports remain available. `getGames()` returns `{games}`. `ApiClient({baseUrl,accountToken,fetch})` supports a separate server and custom fetch implementation; cross-origin browser requests require the server's CORS support.
 
@@ -176,7 +176,7 @@ Where the types are picked up:
 
 CI runs those checks on Node 22 and 24. No npm publishing is configured.
 
-To test the generated game against a real engine, first build a Mini Engine v0.2 checkout with `cargo build`, then run:
+To test the generated game against a real engine, first build a Mini Engine v0.4 checkout with `cargo build`, then run:
 
 ```sh
 MINI_ENGINE_CHECKOUT=/absolute/path/to/mini-engine npm run test:engine
