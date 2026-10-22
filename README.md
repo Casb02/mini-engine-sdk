@@ -5,32 +5,60 @@
 
 # Miniengine✱ SDK
 
-Typed, dependency-free browser client and game scaffolder for Mini Engine v0.4. Package name: **@casb02/mini-engine-sdk**, version **0.3.1**. The source is public on GitHub under the MIT license. This package has **not been published to npm**; use the local build and tarball workflows below.
+Typed, dependency-free browser client and game scaffolder for Mini Engine v0.4, published as the GitHub npm package [**@casb02/mini-engine-sdk**](https://github.com/Casb02/mini-engine-sdk/pkgs/npm/mini-engine-sdk) under the MIT license.
 
 Documentation (Dutch): [casb02.github.io/mini-engine-docs](https://casb02.github.io/mini-engine-docs/), including the [API reference PDF](https://casb02.github.io/mini-engine-docs/downloads/MiniEngine-API-v0.4.pdf).
 
-## Build a game in five minutes
+## Install
 
-Requires Node.js 22+ and an existing Mini Engine checkout.
+The package lives in GitHub Packages. Point the `@casb02` scope at it once, in your project's `.npmrc` (or `~/.npmrc`):
+
+```ini
+@casb02:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+```
+
+GitHub Packages asks for a token even for public packages: create a [personal access token (classic)](https://github.com/settings/tokens) with only `read:packages`, and export it as `GITHUB_TOKEN` (or `gh auth token` if you use the GitHub CLI with that scope). Then:
 
 ```sh
-git clone git@github.com:Casb02/mini-engine-sdk.git
-cd mini-engine-sdk
-npm ci
-npm run build
-node bin/create-mini-game.mjs my-vote --directory ../mini-engine/games/my-vote
+npm install @casb02/mini-engine-sdk
+```
+
+**Without a token** you can install straight from the repository; npm builds it on install:
+
+```sh
+npm install github:Casb02/mini-engine-sdk           # latest main
+npm install github:Casb02/mini-engine-sdk#v0.3.1    # a release tag
+```
+
+Requires Node.js 22+. The package ships the ESM client (`dist/`), one bundled declaration file (`types/`), the `create-mini-game` scaffolder (`bin/`) and the AI agent skills (`skills/`).
+
+## Build a game in five minutes
+
+**On a hosted engine** such as miniengine.nl, use the [Mini Engine CLI](https://github.com/Casb02/mini-engine-cli), which vendors this scaffolder:
+
+```sh
+npm install -g github:Casb02/mini-engine-cli
+me game new my-vote
+me game upload ./my-vote
+```
+
+**In a local engine checkout**, scaffold straight into its `games/` folder:
+
+```sh
+npx -p @casb02/mini-engine-sdk create-mini-game my-vote --directory ../mini-engine/games/my-vote
 ```
 
 Restart Mini Engine from its checkout root with `cargo run`, open its `/demo`, select **My Vote**, and create a room. Join from a second browser or device, click **I'm ready**, and start voting on the host. The generated host, player and display pages work immediately with the SDK served by Mini Engine at `/sdk/mini-engine.js`.
 
 The starter is a complete trusted host-runtime game: the host validates votes, serializes state writes, shows totals to all roles, and supports repeated rounds. Keep its host tab open while playing. Change the question/defaults in `manifest.json`, game logic in `assets/app.js`, and appearance in `assets/style.css`. Each generated package includes its own README.
 
-CLI options:
+Scaffolder options:
 
 ```sh
-node bin/create-mini-game.mjs another-game
-node bin/create-mini-game.mjs another-game --directory /path/to/engine/games/another-game
-node bin/create-mini-game.mjs --help
+npx -p @casb02/mini-engine-sdk create-mini-game another-game
+npx -p @casb02/mini-engine-sdk create-mini-game another-game --directory /path/to/engine/games/another-game
+npx -p @casb02/mini-engine-sdk create-mini-game --help
 ```
 
 The destination must not exist and its final directory name must match the slug, as required by the engine catalog. Slugs use at most 48 lowercase letters, digits and single hyphens, starting with a letter. The CLI rejects unsafe slugs and never overwrites an existing directory.
@@ -44,37 +72,28 @@ The `skills/` directory contains [Agent Skills](https://agentskills.io/specifica
 | [`build-mini-engine-game`](skills/build-mini-engine-game/SKILL.md) | The workflow: scaffold with `create-mini-game`, manifest and settings schema, moderator host and roles, host-runtime state (public, host-only and per-player secrets), rounds, the shared display, running the engine and verifying with several seats. References cover the SDK API, manifest/settings rules, host-runtime recipes and troubleshooting; `scripts/play.mjs` drives a real room with Playwright. |
 | [`design-mini-engine-game-ui`](skills/design-mini-engine-game-ui/SKILL.md) | Player (phone), display (TV across the room) and host (console) pages: each game's own atmosphere, touch targets, readability, self-hosted fonts, no inline scripts under the engine's CSP, reduced motion. |
 
-Install them for **Claude Code** for all your projects, or only for one engine checkout:
+The quickest way to install them for **Claude Code** is the CLI: `me skill install` (all projects) or `me skill install --project` (this project). Or copy them from the installed package:
 
 ```sh
 mkdir -p ~/.claude/skills
-ln -s "$PWD"/skills/* ~/.claude/skills/                          # all projects (symlinks follow git pull)
-mkdir -p ../mini-engine/.claude/skills
-cp -R skills/* ../mini-engine/.claude/skills/                     # one project (copy; re-copy after updates)
+cp -R node_modules/@casb02/mini-engine-sdk/skills/* ~/.claude/skills/   # all projects
+mkdir -p .claude/skills
+cp -R node_modules/@casb02/mini-engine-sdk/skills/* .claude/skills/     # this project only
 ```
 
 Restart the agent session, then ask for example: *"Build a Mini Engine game where everyone secretly picks a number and the closest to 2/3 of the average wins; show the results on the shared screen."* The skill triggers on such requests; you can also name it (`/build-mini-engine-game` in Claude Code).
 
-**Other agents:** Codex, Gemini CLI, Copilot CLI and other agents that read the SKILL.md format also look in `~/.agents/skills/` (copy or symlink the same directories there, or into the location your agent documents). Agents without skill support can be pointed at the files directly: *"Read skills/build-mini-engine-game/SKILL.md in the Mini Engine SDK and follow it."* The skills also ship in the npm artifact (`node_modules/@casb02/mini-engine-sdk/skills/`).
+**Other agents:** Codex, Gemini CLI, Copilot CLI and other agents that read the SKILL.md format also look in `~/.agents/skills/` (copy or symlink the same directories there, or into the location your agent documents). Agents without skill support can be pointed at the files directly: *"Read skills/build-mini-engine-game/SKILL.md in the Mini Engine SDK and follow it."* The skills assume a Mini Engine to run and test the game (a local checkout, or a hosted engine plus the CLI to upload) and scaffold with `npx -p @casb02/mini-engine-sdk create-mini-game` or `me game new`.
 
-The skills assume an engine checkout (to run and test the game) and this SDK checkout (for `create-mini-game`); the agent will point you to both if they are missing.
+## Using the client
 
-## Install the local npm artifact
+In a bundled app or a Node script, import the package:
 
-Build and pack from the SDK checkout:
-
-```sh
-npm pack
+```js
+import { ApiClient, MiniEngine } from '@casb02/mini-engine-sdk';
 ```
 
-Then, in your own project:
-
-```sh
-npm install /absolute/path/to/mini-engine-sdk/casb02-mini-engine-sdk-0.3.1.tgz
-npx create-mini-game my-game --directory /path/to/engine/games/my-game
-```
-
-Here `npx` runs the CLI installed from your local tarball. It does not depend on an npm registry publication. For browser game packages served by the engine, import its served SDK directly:
+For browser game packages served by the engine, import the copy the engine serves, so the client always matches that engine:
 
 ```js
 import { MiniEngine, loadSession } from '/sdk/mini-engine.js';
@@ -152,6 +171,10 @@ Server-runtime mutations send a fresh projected snapshot before their success ac
 Outstanding commands reject on disconnect or timeout. Transient closures reconnect with bounded exponential backoff and fresh authentication; the SDK **never automatically replays commands**. After an uncertain result, inspect the latest snapshot. For an intentional retry of the same server-runtime action, reuse its explicit `actionId` (1–64 characters); server deduplication is scoped to actor and round and retains its last 256 ids. Host-runtime action acknowledgements confirm delivery to the host queue, not durable gameplay processing.
 
 `MiniEngineError` exposes `.code` and optional HTTP `.status`. Explicitly handle errors from returned promises. An `error` event does not consume a rejected request promise.
+
+## Releasing
+
+Bump `version` in `package.json`, merge, then tag: `git tag v0.3.2 && git push origin v0.3.2`. The [publish workflow](.github/workflows/publish.yml) runs the full check and publishes the tag to GitHub Packages with the repository's own `GITHUB_TOKEN`; the tag must match the package version.
 
 ## Sessions and distribution
 

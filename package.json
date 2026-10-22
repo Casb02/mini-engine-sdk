@@ -2,6 +2,24 @@
   "name": "@casb02/mini-engine-sdk",
   "version": "0.3.1",
   "description": "Typed Mini Engine client and trusted game scaffolder",
+  "keywords": [
+    "mini-engine",
+    "party-games",
+    "multiplayer",
+    "websocket",
+    "game-sdk",
+    "browser-games"
+  ],
+  "homepage": "https://casb02.github.io/mini-engine-docs/",
+  "bugs": {
+    "url": "https://github.com/Casb02/mini-engine-sdk/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Casb02/mini-engine-sdk.git"
+  },
+  "license": "MIT",
+  "author": "Cas Boomkamp",
   "type": "module",
   "main": "./dist/mini-engine.js",
   "types": "./types/mini-engine.d.ts",
@@ -25,6 +43,9 @@
   "engines": {
     "node": ">=22"
   },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "scripts": {
     "build": "node scripts/build-types.mjs && esbuild src/mini-engine.ts --bundle --format=esm --target=es2022 --outfile=dist/mini-engine.js",
     "types:check": "node scripts/build-types.mjs --check",
@@ -33,15 +54,11 @@
     "check": "npm run types:check && npm run build && npm run typecheck && npm test",
     "prepack": "npm run build",
     "test:package": "node tests/package-smoke.mjs",
-    "test:engine": "npm run build && node tests/engine-smoke.mjs"
+    "test:engine": "npm run build && node tests/engine-smoke.mjs",
+    "prepare": "npm run build"
   },
   "devDependencies": {
     "esbuild": "^0.28.2",
     "typescript": "^5.9.3"
-  },
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Casb02/mini-engine-sdk.git"
   }
 }
