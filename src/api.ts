@@ -56,8 +56,17 @@ export class ApiClient {
   displayToken(code: string, token: string): Promise<{ token: string }> {
     return this.call(`${this.roomPath(code)}/display-token`, { method: 'POST', token });
   }
-  register(input: { username: string; password: string; display_name: string }): Promise<AccountSession> {
+  /** Creates an account; the engine mails a confirmation link to `email`. */
+  register(input: { username: string; password: string; display_name: string; email: string }): Promise<AccountSession> {
     return this.call('/accounts/register', { method: 'POST', body: JSON.stringify(input) });
+  }
+  /** Confirms an address with the token from the `?verify=` link. */
+  verifyEmail(token: string): Promise<{ account: Account }> {
+    return this.call('/accounts/verify-email', { method: 'POST', body: JSON.stringify({ token }) });
+  }
+  /** Adds or changes the account address, or resends the confirmation link. */
+  setEmail(email: string): Promise<{ account: Account; verification_sent: boolean }> {
+    return this.call('/accounts/email', { method: 'PUT', token: this.accountToken, body: JSON.stringify({ email }) });
   }
   login(input: { username: string; password: string }): Promise<AccountSession> {
     return this.call('/accounts/login', { method: 'POST', body: JSON.stringify(input) });

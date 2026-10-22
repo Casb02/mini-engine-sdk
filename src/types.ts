@@ -30,7 +30,7 @@ export interface Manifest<Settings = Record<string, Json>> {
 }
 export interface RoomCredentials { code: string; token: string; role: Role; player_id?: string | null; display_token?: string }
 export interface CreateRoomOptions { game_id: string; max_players?: number; settings?: Record<string, Json>; name?: string; config?: Partial<RoomConfig> }
-export interface Account { id: string; username: string; display_name: string; created_at: string | number }
+export interface Account { id: string; username: string; display_name: string; created_at: string | number; email: string | null; email_verified: boolean }
 export interface AccountSession { account: Account; token: string }
 export interface AccountStats {
   totals: { games_played: number; wins: number };

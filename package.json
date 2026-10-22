@@ -1,6 +1,6 @@
 {
   "name": "@casb02/mini-engine-sdk",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Typed Mini Engine client and trusted game scaffolder",
   "type": "module",
   "main": "./dist/mini-engine.js",

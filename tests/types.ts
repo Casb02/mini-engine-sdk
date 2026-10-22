@@ -1,4 +1,4 @@
-import { ApiClient, MiniEngine, type Manifest, type ActionPayloads } from '@casb02/mini-engine-sdk';
+import { ApiClient, MiniEngine, type Account, type Manifest, type ActionPayloads } from '@casb02/mini-engine-sdk';
 const api = new ApiClient({ baseUrl: 'http://localhost:3000', accountToken: 'secret' });
 void api.createRoom({ game_id: 'vote', config: { host_mode: 'moderator' } });
 const client = new MiniEngine<{ votes: Record<string, boolean> }, { prompt: string }>({ code: 'ABCDEF', token: 'secret' });
@@ -26,3 +26,8 @@ void client.configure({ host_mode: 'playing' });
 import type { Pending } from '@casb02/mini-engine-sdk';
 // @ts-expect-error lifecycle states are a closed union
 void client.lifecycle('started');
+
+const account: Account = { id: 'a', username: 'sander', display_name: 'Sander', created_at: 1, email: 'sander@example.com', email_verified: false };
+void account;
+// @ts-expect-error registration needs an email address since engine v0.4
+void new ApiClient().register({ username: 'sander', password: 'correct horse battery', display_name: 'Sander' });

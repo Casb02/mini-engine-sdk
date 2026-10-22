@@ -14,7 +14,8 @@ const run = (command, args, cwd = directory) => {
 };
 try {
   run(npm, ['pack', '--pack-destination', directory], root);
-  const tarball = join(directory, 'casb02-mini-engine-sdk-0.2.0.tgz');
+  const { version } = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+  const tarball = join(directory, `casb02-mini-engine-sdk-${version}.tgz`);
   await writeFile(join(directory, 'package.json'), '{"private":true,"type":"module"}\n');
   run(npm, ['install', '--ignore-scripts', '--no-audit', '--no-fund', tarball]);
   run(process.execPath, ['--input-type=module', '-e', "import { MiniEngine, ApiClient, sessionKey } from '@casb02/mini-engine-sdk'; if (typeof MiniEngine !== 'function' || typeof ApiClient !== 'function' || sessionKey('abcdef','host') !== 'mini-engine:ABCDEF:host') throw Error('bad exports');"]);
