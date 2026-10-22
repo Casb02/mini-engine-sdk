@@ -1,4 +1,4 @@
-import { ApiClient, MiniEngine, type Manifest, type ActionPayloads } from '../dist/mini-engine.js';
+import { ApiClient, MiniEngine, type Manifest, type ActionPayloads } from '@casb02/mini-engine-sdk';
 const api = new ApiClient({ baseUrl: 'http://localhost:3000', accountToken: 'secret' });
 void api.createRoom({ game_id: 'vote', config: { host_mode: 'moderator' } });
 const client = new MiniEngine<{ votes: Record<string, boolean> }, { prompt: string }>({ code: 'ABCDEF', token: 'secret' });
@@ -21,3 +21,8 @@ void invalidLateJoin;
 void client.setSettings({ prompt: 1 });
 // @ts-expect-error host_mode is immutable after creation
 void client.configure({ host_mode: 'playing' });
+// The bundled declaration keeps internal helper types private.
+// @ts-expect-error Pending is not part of the public API
+import type { Pending } from '@casb02/mini-engine-sdk';
+// @ts-expect-error lifecycle states are a closed union
+void client.lifecycle('started');

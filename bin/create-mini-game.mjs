@@ -24,8 +24,8 @@ if (args.length === 1 && ['--help', '-h'].includes(args[0])) {
     // An exclusive directory creation preserves every existing destination, even an empty one.
     await mkdir(directory);
     try {
-      await mkdir(join(directory, 'assets'));
       for (const [name, content] of Object.entries(gameFiles(slug))) {
+        await mkdir(dirname(join(directory, name)), { recursive: true });
         await writeFile(join(directory, name), content, { flag: 'wx' });
       }
     } catch (error) {
