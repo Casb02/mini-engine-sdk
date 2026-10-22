@@ -127,7 +127,7 @@ export interface Realtime {
   value(from: string | RealtimeFrom, key: string): Json | undefined;
   /** Listen to one key, or to every key with '*'. Returns an unsubscribe function. */
   onValue(key: string, fn: RealtimeValueHandler): () => void;
-  /** Host only: clear every value in the room. */
+  /** Host only: clear every value in the room. Values you set after calling it are kept. */
   reset(): void;
 }
 export interface ActionEnvelope { type: 'action'; player_id: string; name: string; data: Json; request_id?: string; action_id?: string }

@@ -288,6 +288,49 @@ test('reset is sent as one frame, drops unsent values and throttling is an event
   client.close();
 });
 
+test('values the host sets after reset survive its own rt.reset echo', async () => {
+  const {client,socket}=attach({realtime:{setInterval:0}});
+  const seen=[];
+  client.realtime.onValue('*', (value, from, ts, key) => seen.push([from.role, from.player_id, key, value]));
+  socket.receive({type:'rt.values', values:[{key:'phase', value:'lobby', from:{role:'host', player_id:null}, ts:1}, {key:'kart', value:{x:1}, from:sender('p1'), ts:2}]});
+  client.realtime.set('score', 3);
+  seen.length=0;
+  client.realtime.reset();
+  client.realtime.set('phase', 'start');
+  await wait(5);
+  assert.deepEqual(socket.sent.filter(frame=>frame.type.startsWith('rt.')).slice(-2), [{type:'rt.reset'}, {type:'rt.set', key:'phase', value:'start'}]);
+  seen.length=0;
+  socket.receive({type:'rt.reset', from:{role:'host', player_id:null}, ts:5});
+  assert.equal(client.realtime.value('host', 'phase'), 'start');
+  assert.equal(client.realtime.value('host', 'score'), undefined);
+  assert.equal(client.realtime.value('p1', 'kart'), undefined);
+  assert.deepEqual(seen, [['host',null,'score',null], ['player','p1','kart',null]]);
+  client.realtime.reset();
+  client.realtime.set('phase', 'round-2');
+  client.realtime.reset();
+  client.realtime.set('turn', 'p2');
+  socket.receive({type:'rt.reset', from:{role:'host', player_id:null}, ts:6});
+  socket.receive({type:'rt.reset', from:{role:'host', player_id:null}, ts:7});
+  assert.equal(client.realtime.value('host', 'phase'), undefined);
+  assert.equal(client.realtime.value('host', 'turn'), 'p2');
+  socket.receive({type:'rt.reset', from:{role:'host', player_id:null}, ts:8});
+  assert.equal(client.realtime.value('host', 'turn'), undefined, 'a reset this connection did not send clears everything');
+  client.close();
+});
+
+test('a player cannot keep values through a reset it never sent', () => {
+  const client=new MiniEngine({code:'ABCDEF', token:'secret', WebSocket:Socket, baseUrl:'https://party.test', realtime:{setInterval:0}}).connect();
+  const socket=Socket.sockets.at(-1);
+  socket.open();
+  socket.receive({type:'snapshot', room:{...snapshot(2), you:{role:'player', player_id:'p1'}}});
+  socket.receive({type:'rt.values', values:[]});
+  client.realtime.reset();
+  client.realtime.set('ready', true);
+  socket.receive({type:'rt.reset', from:{role:'host', player_id:null}, ts:5});
+  assert.equal(client.realtime.value('p1', 'ready'), undefined);
+  client.close();
+});
+
 test('award is a correlated host command and achievements are an event', async () => {
   const {client,socket}=attach();
   const pending=client.award('p1', 'snelste-vinger');

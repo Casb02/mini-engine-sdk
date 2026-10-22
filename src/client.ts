@@ -46,6 +46,9 @@ class RealtimeChannel implements Realtime {
   /** Keys this connection set before its `rt.values` arrived; that frame cannot know them. */
   private readonly early = new Set<string>();
   private synced = false;
+  /** Own `rt.reset` frames still to come back, and the keys set since the last one was sent. */
+  private resets = 0;
+  private readonly kept = new Set<string>();
   private timer?: ReturnType<typeof setTimeout>;
   private flushed = 0;
   constructor(private readonly link: RealtimeLink, private readonly interval: number) {}
@@ -62,6 +65,7 @@ class RealtimeChannel implements Realtime {
     const self = this.link.self();
     if (!self) return;
     if (!this.synced) this.early.add(key);
+    if (this.resets) this.kept.add(key);
     this.pending.set(key, value);
     this.store(key, value, self, Date.now());
     if (this.timer !== undefined) return;
@@ -70,8 +74,16 @@ class RealtimeChannel implements Realtime {
     else this.timer = setTimeout(() => this.flush(), wait);
   }
   reset(): void {
-    this.drop();
-    this.link.send({ type: 'rt.reset' });
+    this.unsent();
+    if (this.link.send({ type: 'rt.reset' }) && this.link.self()?.role === 'host') {
+      this.resets++;
+      this.kept.clear();
+    }
+  }
+  private unsent(): void {
+    clearTimeout(this.timer);
+    this.timer = undefined;
+    this.pending.clear();
   }
   private flush(): void {
     clearTimeout(this.timer);
@@ -134,18 +146,28 @@ class RealtimeChannel implements Realtime {
         for (const [key, entry] of entries) if (previous.get(sender)?.get(key) !== entry) this.notify(key, entry.value, entry.from, entry.ts);
       }
     } else if (message.type === 'rt.reset') {
+      const self = this.link.self();
+      const own = self && this.resets && senderOf(fromOf(message.from)) === senderOf(self) ? senderOf(self) : null;
       const previous = this.values;
       this.values = new Map();
-      for (const entries of previous.values()) for (const [key, entry] of entries) this.notify(key, null, entry.from, ts);
+      for (const [sender, entries] of previous) {
+        for (const [key, entry] of entries) {
+          if (sender === own && this.kept.has(key)) {
+            if (!this.values.has(sender)) this.values.set(sender, new Map());
+            this.values.get(sender)!.set(key, entry);
+          } else this.notify(key, null, entry.from, ts);
+        }
+      }
+      if (own !== null && --this.resets === 0) this.kept.clear();
     }
   }
   /** Forget unsent values; they are never sent after a reconnect. */
   drop(): void {
-    clearTimeout(this.timer);
-    this.timer = undefined;
-    this.pending.clear();
+    this.unsent();
     this.early.clear();
     this.synced = false;
+    this.resets = 0;
+    this.kept.clear();
   }
   clear(): void {
     this.drop();
