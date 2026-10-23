@@ -6,7 +6,7 @@ import { gameFiles } from './templates.mjs';
 const usage = 'Usage: create-mini-game <slug> [--directory path]';
 const args = process.argv.slice(2);
 if (args.length === 1 && ['--help', '-h'].includes(args[0])) {
-  console.log(`${usage}\n\nCreates a trusted host-runtime vote game for your Mini Engine games directory.`);
+  console.log(`${usage}\n\nCreates a trusted host-runtime vote game for Mini Engine.`);
 } else {
   try {
     const slug = args[0];
@@ -32,7 +32,7 @@ if (args.length === 1 && ['--help', '-h'].includes(args[0])) {
       await rm(directory, { recursive: true, force: true });
       throw error;
     }
-    console.log(`Created ${slug} in ${directory}\n\nPlace this directory in your engine's games directory, restart the engine, and select it in /home.\nRead ${join(directory, 'README.md')} to customize your game.`);
+    console.log(`Created ${slug} in ${directory}\n\nPlay it on your own computer with me dev from the Mini Engine CLI, and publish it with me game upload.\nRead ${join(directory, 'README.md')} to customize your game.`);
   } catch (error) {
     console.error(`create-mini-game: ${error.message}`);
     process.exitCode = 1;
