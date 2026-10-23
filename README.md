@@ -28,7 +28,7 @@ npm install @casb02/mini-engine-sdk
 
 ```sh
 npm install github:Casb02/mini-engine-sdk           # latest main
-npm install github:Casb02/mini-engine-sdk#v0.5.2    # a release tag
+npm install github:Casb02/mini-engine-sdk#v0.6.0    # a release tag
 ```
 
 Requires Node.js 22+. The package ships the ESM client (`dist/`), one bundled declaration file (`types/`), the `create-mini-game` scaffolder (`bin/`) and the AI agent skills (`skills/`).
@@ -39,32 +39,37 @@ Use the [Mini Engine CLI](https://github.com/Casb02/mini-engine-cli). It vendors
 
 ```sh
 npm install -g github:Casb02/mini-engine-cli
-me game new my-vote
-cd my-vote
-me dev
+mkdir my-game && cd my-game
+me init
 ```
 
-`me dev` opens the host, the shared display and two players side by side. You play along on the host page (the scaffold's default mode); ready both players, start the vote on the host and vote on every seat. Saving a file reloads the seats and keeps the room. The generated pages use the SDK at `/sdk/mini-engine.js`, which both `me dev` and Mini Engine serve.
+`me init` asks for a title, the number of players, how the room is played (*Iedereen doet mee*, TV or both), the look, a starter template and the language, with a default for every question, and then offers to start `me dev`. `me dev` opens the host and two players side by side. You play along on the host page (the default mode); ready the players, start on the host and play on every seat. Saving a file reloads the seats and keeps the room. The generated pages use the SDK at `/sdk/mini-engine.js`, which both `me dev` and Mini Engine serve.
 
 To play it with friends, publish it with a dev key from whoever runs the Mini Engine server you publish to: `me auth`, then `me game upload`. The first upload of a new game is live at once; later versions need `me game upload --activate` (or `me game activate`).
 
 Without the CLI, the scaffolder is in this package:
 
 ```sh
-npx -p @casb02/mini-engine-sdk create-mini-game my-vote
-```
-
-The starter is a complete trusted host-runtime game: the host validates votes, serializes state writes, shows totals to all roles, and supports repeated rounds. Keep its host tab open while playing. Change the question/defaults in `manifest.json`, game logic in `assets/app.js`, and appearance in `assets/style.css`. Each generated package includes its own README.
-
-Scaffolder options:
-
-```sh
-npx -p @casb02/mini-engine-sdk create-mini-game another-game
-npx -p @casb02/mini-engine-sdk create-mini-game another-game --directory path/to/another-game
+npx -p @casb02/mini-engine-sdk create-mini-game my-quiz --template quiz --look mini-engine-ui
+npx -p @casb02/mini-engine-sdk create-mini-game --list
 npx -p @casb02/mini-engine-sdk create-mini-game --help
 ```
 
-The destination must not exist and its final directory name must match the slug. Slugs use at most 48 lowercase letters, digits and single hyphens, starting with a letter. The CLI rejects unsafe slugs and never overwrites an existing directory.
+### Starter templates
+
+| Template | What it is | Shows |
+| --- | --- | --- |
+| `stemmen` (default) | Everyone votes yes or no on one question; every screen shows the count. | The queue, a host who plays along, settings shown as text, a shared display |
+| `quiz` | Multiple-choice questions on a timer, points and a final board. | Secret answers in `host_state`, `player_states`, `data.json` and own sets (one question per line in the set form), timers on the host, an achievement |
+| `buzzer` | Who presses first after the signal? | `client.realtime` presses ranked by the engine's `ts`, a 150 ms window, false starts, the host deciding with `setState` |
+| `beurten` | Take turns rolling a die; a 1 loses the turn's points. | A turn order, dice thrown by the host, players who leave, the offline skip after 30 seconds |
+| `leeg` | A bare start: lobby, start, one example move and an end. | The smallest complete loop of action → referee → state |
+
+Every template declares `host_modes: ["playing", "tv"]` with `playing` as the default, and contains `manifest.json`, the role pages, `assets/app.js` (views and the host's referee), `assets/logic.js` (pure rules) with `tests/logic.test.mjs`, `assets/room.js` (session, connection, room code, lobby), `assets/texts.js` (every word, Dutch or English), `assets/style.css`, `assets/icon.svg`, a README in the chosen language, `jsconfig.json` with `types/`, and `.meignore`. With `--look mini-engine-ui` the [MiniEngineUI](skills/mini-engine-ui/SKILL.md) kit is copied to `assets/ui/` and applied with the chosen theme (`kalk`, `nacht`, `vilt` or `studio`).
+
+Scaffolder options: `--template`, `--title`, `--players 2-8`, `--modes playing,tv` (the first is the default), `--look plain|mini-engine-ui`, `--theme`, `--lang en|nl` and `--directory`. The destination must not exist and its final directory name must match the slug. Slugs use at most 48 lowercase letters, digits and single hyphens, starting with a letter. The scaffolder rejects unsafe slugs and never overwrites an existing directory.
+
+From code, `gameFiles(slug, options)` in `bin/templates.mjs` returns every file of a new game by path; `templateList(language)` lists the templates.
 
 ## Build a game with an AI agent
 
@@ -352,7 +357,7 @@ const credentials = await api.createRoom({ game_id: 'jeopardy', set_id: saved.id
 
 ## Releasing
 
-Bump `version` in `package.json`, merge, then tag: `git tag v0.5.2 && git push origin v0.5.2`. The [publish workflow](.github/workflows/publish.yml) runs the full check and publishes the tag to GitHub Packages with the repository's own `GITHUB_TOKEN`; the tag must match the package version.
+Bump `version` in `package.json`, merge, then tag: `git tag v0.6.0 && git push origin v0.6.0`. The [publish workflow](.github/workflows/publish.yml) runs the full check and publishes the tag to GitHub Packages with the repository's own `GITHUB_TOKEN`; the tag must match the package version.
 
 ## Sessions and distribution
 
@@ -372,7 +377,7 @@ The whole public API is described by one self-contained declaration file, [`type
 Where the types are picked up:
 
 - **npm/tarball consumers:** `package.json` `types` and `exports["."].types` point at `types/mini-engine.d.ts`, so `import { MiniEngine } from '@casb02/mini-engine-sdk'` is typed in TypeScript and in JavaScript editors.
-- **Scaffolded games:** `create-mini-game` writes `jsconfig.json` and a copy of the declarations in `types/mini-engine.d.ts`. Game code keeps importing the rooted browser path `/sdk/mini-engine.js`; TypeScript applies `compilerOptions.paths` to that specifier and resolves it to the game's own `types/mini-engine.d.ts`. `checkJs` and `strict` are on, so VS Code and other TypeScript-based editors give completion and underline wrong SDK calls in plain JavaScript without a build step or an import map. The generated `assets/app.js` declares its state and settings shapes with JSDoc (`@typedef`, `@type {MiniEngine<PublicState, Settings>}`) and passes the check. From a terminal: `npx -p typescript tsc -p jsconfig.json` inside the game directory. Only `assets/` is served, so `jsconfig.json` and `types/` never reach browsers; `me game new` also lists them in `.meignore`.
+- **Scaffolded games:** `create-mini-game` writes `jsconfig.json` and a copy of the declarations in `types/mini-engine.d.ts`. Game code keeps importing the rooted browser path `/sdk/mini-engine.js`; TypeScript applies `compilerOptions.paths` to that specifier and resolves it to the game's own `types/mini-engine.d.ts`. `checkJs` and `strict` are on, so VS Code and other TypeScript-based editors give completion and underline wrong SDK calls in plain JavaScript without a build step or an import map. The generated `assets/app.js` declares its state and settings shapes with JSDoc (`@typedef`, `@type {MiniEngine<PublicState, Settings>}`) and passes the check, as do `assets/logic.js`, `assets/room.js` and `assets/texts.js`. From a terminal: `npx -p typescript tsc -p jsconfig.json` inside the game directory. Only `assets/` is served, so `jsconfig.json` and `types/` never reach browsers; the scaffold also lists them in `.meignore`.
 
 CI runs those checks on Node 22 and 24. Publishing only happens from a version tag (see [Releasing](#releasing)).
 
