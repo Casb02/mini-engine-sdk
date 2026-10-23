@@ -26,15 +26,20 @@ test('CLI scaffolds all roles, compatible manifest and parseable browser module'
       assert.match(html,/\/games\/team-vote\/assets\/app.js/);
     }
     const app=await readFile(join(target,'assets/app.js'),'utf8');
-    assert.match(app,/from '\/sdk\/mini-engine.js'/);
-    assert.match(app,/client.ready/);
-    assert.match(app,/queue = queue/);
+    const room=await readFile(join(target,'assets/room.js'),'utf8');
+    assert.match(room,/from '\/sdk\/mini-engine.js'/);
+    assert.match(room,/client.ready/);
+    assert.match(room,/queue = queue/);
+    assert.match(room,/host_player_id/);
+    assert.doesNotMatch(room,/\/\/@(ui|plain)/,'look markers are removed');
     assert.match(app,/textContent/);
-    assert.match(app,/host_player_id/);
     assert.match(app,/enqueue\(\(\) => applyVote\(own/);
-    const checked=spawnSync(process.execPath,['--check','--input-type=module'],{input:app,encoding:'utf8'});
-    assert.equal(checked.status,0,checked.stderr);
-    assert.match(await readFile(join(target,'README.md'),'utf8'),/host-runtime/);
+    for (const source of [app,room]) {
+      const checked=spawnSync(process.execPath,['--check','--input-type=module'],{input:source,encoding:'utf8'});
+      assert.equal(checked.status,0,checked.stderr);
+    }
+    assert.match(await readFile(join(target,'README.md'),'utf8'),/referee/);
+    assert.match(await readFile(join(target,'.meignore'),'utf8'),/^jsconfig\.json$/m);
   } finally { await rm(parent,{recursive:true,force:true}); }
 });
 
@@ -51,6 +56,7 @@ test('CLI refuses traversal, unknown flags, missing directory values and existin
     assert.notEqual(result.status,0);
     assert.equal(await readFile(join(target,'keep.txt'),'utf8'),'untouched');
     assert.equal(run(['--help']).status,0);
+    assert.match(run(['--list']).stdout,/^quiz +/m);
   } finally { await rm(parent,{recursive:true,force:true}); }
 });
 

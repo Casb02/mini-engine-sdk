@@ -22,6 +22,10 @@ try {
   run(npm, ['exec', '--offline', '--', 'create-mini-game', 'packed-vote']);
   const manifest = JSON.parse(await readFile(join(directory, 'packed-vote/manifest.json'), 'utf8'));
   if (manifest.id !== 'packed-vote') throw new Error('Packed CLI did not generate the game');
+  run(npm, ['exec', '--offline', '--', 'create-mini-game', 'packed-quiz', '--template', 'quiz', '--look', 'mini-engine-ui', '--lang', 'nl']);
+  const quiz = JSON.parse(await readFile(join(directory, 'packed-quiz/manifest.json'), 'utf8'));
+  if (quiz.set_kinds?.[0]?.id !== 'questions') throw new Error('Packed CLI did not generate the quiz template');
+  await readFile(join(directory, 'packed-quiz/assets/ui/fonts/dm-sans.woff2'));
   await writeFile(join(directory, 'consumer.ts'), "import { MiniEngine, type Snapshot } from '@casb02/mini-engine-sdk'; const engine = new MiniEngine<{votes:number}, {prompt:string}>({code:'ABCDEF',token:'secret'}); engine.on('snapshot', room => { const prompt: string = room.settings.prompt; void prompt; }); void engine; let snapshot: Snapshot | null = null; void snapshot;\n");
   run(process.execPath, [join(root, 'node_modules/typescript/bin/tsc'), '--strict', '--noEmit', '--target', 'es2022', '--module', 'nodenext', '--moduleResolution', 'nodenext', 'consumer.ts']);
   console.log('Packed artifact installed without scripts; ESM exports, declarations and installed CLI work.');

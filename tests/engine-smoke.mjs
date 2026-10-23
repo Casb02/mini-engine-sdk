@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, cp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, cp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawn, spawnSync } from 'node:child_process';
@@ -6,6 +6,7 @@ import { createServer } from 'node:net';
 import vm from 'node:vm';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
+import { build } from 'esbuild';
 import { ApiClient, MiniEngine } from '../dist/mini-engine.js';
 
 const engineRoot = process.env.MINI_ENGINE_CHECKOUT;
@@ -47,15 +48,19 @@ try {
   const firstSession = await api.joinRoom(hostSession.code,'First');
   const secondSession = await api.joinRoom(hostSession.code,'Second');
   const { token:displayToken } = await api.displayToken(hostSession.code,hostSession.token);
-  const source = await readFile(join(games,'integration-vote/assets/app.js'),'utf8');
+  // The game's modules are bundled into one script; its SDK import reads the bound client from the VM's globals.
+  const bundle = await build({ entryPoints:[join(games,'integration-vote/assets/app.js')], bundle:true, format:'iife', write:false, logLevel:'silent', plugins:[{ name:'sdk', setup(plugin) {
+    plugin.onResolve({ filter:/^\/sdk\/mini-engine\.js$/ }, () => ({ path:'sdk', namespace:'sdk' }));
+    plugin.onLoad({ filter:/.*/, namespace:'sdk' }, () => ({ contents:'module.exports = globalThis.SDK;', loader:'js' }));
+  } }] });
+  const source = bundle.outputFiles[0].text;
   function mount(role, session) {
     const elements = new Map();
-    const element = () => ({ hidden:false, disabled:false, textContent:'', children:[], replaceChildren(...children) { this.children=children; } });
-    const document = { body:{dataset:{role}}, getElementById(id) { if (!elements.has(id)) elements.set(id,element()); return elements.get(id); }, createElement:element };
+    const element = () => ({ hidden:false, disabled:false, textContent:'', innerHTML:'', className:'', children:[], attributes:{}, dataset:{}, classList:{ toggle() {} }, setAttribute(name,value) { this.attributes[name]=value; }, addEventListener() {}, append(...children) { this.children.push(...children); }, replaceChildren(...children) { this.children=children; } });
+    const document = { body:{dataset:{role}}, visibilityState:'visible', getElementById(id) { if (!elements.has(id)) elements.set(id,element()); return elements.get(id); }, createElement:element, querySelectorAll:() => [], addEventListener() {} };
     class BoundEngine extends MiniEngine { constructor(credentials) { super({...credentials,baseUrl}); clients.push(this); } }
-    const context = vm.createContext({ SDK:{MiniEngine:BoundEngine,loadSession:()=>session}, document, location:{search:`?room=${session.code}`}, URLSearchParams, window:{addEventListener(){}}, console });
-    const script = source.replace("import { MiniEngine, loadSession } from '/sdk/mini-engine.js';",'const { MiniEngine, loadSession } = SDK;');
-    new vm.Script(script).runInContext(context);
+    const context = vm.createContext({ SDK:{MiniEngine:BoundEngine,loadSession:()=>session}, document, navigator:{}, location:{search:`?room=${session.code}`,host:'localhost',origin:'http://localhost'}, URLSearchParams, window:{addEventListener(){}}, setTimeout, clearTimeout, console });
+    new vm.Script(source).runInContext(context);
     return { elements, client:clients.at(-1) };
   }
   const host = mount('host',hostSession);
@@ -78,7 +83,7 @@ try {
   await until(()=>display.elements.get('yes').textContent==='1' && display.elements.get('no').textContent==='2');
   await host.elements.get('finish').onclick();
   await until(()=>clients.every(client=>client.room.status==='finished'));
-  await host.elements.get('reset').onclick();
+  await host.elements.get('again').onclick();
   await until(()=>clients.every(client=>client.room.status==='lobby') && Object.keys(host.client.room.public_state?.votes??{}).length===0);
   assert.equal(first.elements.get('error').textContent,'');
   assert.equal(host.elements.get('error').textContent,'');
