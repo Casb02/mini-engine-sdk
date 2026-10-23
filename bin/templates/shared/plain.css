@@ -16,6 +16,7 @@ p, ul, ol { margin: 0; }
 .me-card, .me-surface { border: 1px solid var(--me-line); border-radius: 1rem; padding: 1.25rem; background: var(--me-surface); }
 .me-tally { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: .75rem; }
 .me-actions { display: flex; flex-wrap: wrap; gap: .75rem; }
+.me-actions:not(:has(> :not([hidden]))) { display: none; }
 .me-button, .me-choice { font: inherit; min-height: 48px; padding: .75rem 1.25rem; border: 1px solid var(--me-line); border-radius: .75rem; background: transparent; color: inherit; cursor: pointer; }
 .me-button.is-primary { background: #3557c7; border-color: #3557c7; color: white; }
 .me-button.is-wide { width: 100%; }

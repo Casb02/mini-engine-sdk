@@ -87,7 +87,7 @@ if (client) {
     const said = { rolled: t.rolled, bust: t.bust, held: t.held, skipped: t.skipped, won: t.won };
     $('rules').textContent = fill(t.rules, { target: room.settings.target });
     $('rules').hidden = room.status !== 'lobby';
-    $('table').hidden = !game;
+    $('table').hidden = !game || game.phase === 'done';
     $('scores').hidden = !game;
     if (!game) {
       $('headline').textContent = t.headline;

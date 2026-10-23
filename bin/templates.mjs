@@ -332,6 +332,7 @@ export function gameFiles(slug, options = {}) {
   const css = ui
     ? `/* ${o.language === 'nl' ? 'De eigen opmaak van dit spel; MiniEngineUI in assets/ui/ doet de rest. Het thema staat in data-theme op <body>.' : 'This game’s own styles; MiniEngineUI in assets/ui/ does the rest. The theme is data-theme on <body>.'} */
 body[data-view="screen"] .me-focus { max-width: 72rem; }
+.me-actions:not(:has(> :not([hidden]))) { display: none; }
 ${template.css}`
     : `${readFileSync(new URL('plain.css', SHARED), 'utf8')}${template.css}`;
   const files = {
