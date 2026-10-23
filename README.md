@@ -7,7 +7,7 @@
 
 Typed, dependency-free browser client and game scaffolder for Mini Engine 0.5, published as the GitHub npm package [**@casb02/mini-engine-sdk**](https://github.com/Casb02/mini-engine-sdk/pkgs/npm/mini-engine-sdk) under the MIT license.
 
-Documentation (Dutch): [docs.miniengine.nl](https://docs.miniengine.nl/), including the [API reference PDF](https://docs.miniengine.nl/downloads/MiniEngine-API-v0.5.pdf).
+Documentation (Dutch): [docs.miniengine.nl](https://docs.miniengine.nl/). Start with [Je eerste game](https://docs.miniengine.nl/game-bouwen/eerste-game.html).
 
 ## Install
 
@@ -35,21 +35,24 @@ Requires Node.js 22+. The package ships the ESM client (`dist/`), one bundled de
 
 ## Build a game in five minutes
 
-**On a hosted engine** such as miniengine.nl, use the [Mini Engine CLI](https://github.com/Casb02/mini-engine-cli), which vendors this scaffolder:
+Use the [Mini Engine CLI](https://github.com/Casb02/mini-engine-cli). It vendors this scaffolder and plays the game on your own computer with `me dev`, a local stand-in for Mini Engine:
 
 ```sh
 npm install -g github:Casb02/mini-engine-cli
 me game new my-vote
-me game upload ./my-vote
+cd my-vote
+me dev
 ```
 
-**In a local engine checkout**, scaffold straight into its `games/` folder:
+`me dev` opens the host, the shared display and two players side by side. You play along on the host page (the scaffold's default mode); ready both players, start the vote on the host and vote on every seat. Saving a file reloads the seats and keeps the room. The generated pages use the SDK at `/sdk/mini-engine.js`, which both `me dev` and Mini Engine serve.
+
+To play it with friends, publish it with a dev key from whoever runs the Mini Engine server you publish to: `me auth`, then `me game upload`. The first upload of a new game is live at once; later versions need `me game upload --activate` (or `me game activate`).
+
+Without the CLI, the scaffolder is in this package:
 
 ```sh
-npx -p @casb02/mini-engine-sdk create-mini-game my-vote --directory ../mini-engine/games/my-vote
+npx -p @casb02/mini-engine-sdk create-mini-game my-vote
 ```
-
-Restart Mini Engine from its checkout root with `cargo run`, open its `/home`, select **My Vote**, and create a room. Join from a second browser or device, click **I'm ready**, and start voting on the host. The generated host, player and display pages work immediately with the SDK served by Mini Engine at `/sdk/mini-engine.js`.
 
 The starter is a complete trusted host-runtime game: the host validates votes, serializes state writes, shows totals to all roles, and supports repeated rounds. Keep its host tab open while playing. Change the question/defaults in `manifest.json`, game logic in `assets/app.js`, and appearance in `assets/style.css`. Each generated package includes its own README.
 
@@ -57,11 +60,11 @@ Scaffolder options:
 
 ```sh
 npx -p @casb02/mini-engine-sdk create-mini-game another-game
-npx -p @casb02/mini-engine-sdk create-mini-game another-game --directory /path/to/engine/games/another-game
+npx -p @casb02/mini-engine-sdk create-mini-game another-game --directory path/to/another-game
 npx -p @casb02/mini-engine-sdk create-mini-game --help
 ```
 
-The destination must not exist and its final directory name must match the slug, as required by the engine catalog. Slugs use at most 48 lowercase letters, digits and single hyphens, starting with a letter. The CLI rejects unsafe slugs and never overwrites an existing directory.
+The destination must not exist and its final directory name must match the slug. Slugs use at most 48 lowercase letters, digits and single hyphens, starting with a letter. The CLI rejects unsafe slugs and never overwrites an existing directory.
 
 ## Build a game with an AI agent
 
@@ -69,7 +72,7 @@ The `skills/` directory contains [Agent Skills](https://agentskills.io/specifica
 
 | Skill | Use |
 | --- | --- |
-| [`build-mini-engine-game`](skills/build-mini-engine-game/SKILL.md) | The workflow: scaffold with `create-mini-game`, manifest and settings schema, host modes (the host plays along by default) and roles, host-runtime state (public, host-only and per-player secrets), rounds, the shared display, running the engine and verifying with several seats. References cover the SDK API, manifest/settings rules (including achievements and set kinds), host-runtime recipes (including realtime buzzers and positions, and awarding achievements) and troubleshooting; `scripts/play.mjs` drives a real room with Playwright. |
+| [`build-mini-engine-game`](skills/build-mini-engine-game/SKILL.md) | The workflow: scaffold with `create-mini-game`, manifest and settings schema, host modes (the host plays along by default) and roles, host-runtime state (public, host-only and per-player secrets), rounds, the shared display, testing with `me dev` and then a test upload with several real seats. References cover the SDK API, manifest/settings rules (including achievements and set kinds), host-runtime recipes (including realtime buzzers and positions, and awarding achievements) and troubleshooting; `scripts/play.mjs` drives a whole room with Playwright, against `me dev` or a server. |
 | [`design-mini-engine-game-ui`](skills/design-mini-engine-game-ui/SKILL.md) | Player (phone), display (TV across the room) and host (console) pages: each game's own atmosphere, touch targets, readability, self-hosted fonts, no inline scripts under the engine's CSP, reduced motion. |
 | [`mini-engine-ui`](skills/mini-engine-ui/SKILL.md) | **MiniEngineUI**: the calm style of the Mini Engine demo games as a copy-in kit (stylesheet, Space Grotesk and DM Sans, host/player/display pages that fit the scaffold) with four themes (`kalk`, `nacht`, `vilt`, `studio`) and room for one signature element. The build skill asks whether you want it, and uses it when you only have an idea. |
 
@@ -84,7 +87,7 @@ cp -R node_modules/@casb02/mini-engine-sdk/skills/* .claude/skills/     # this p
 
 Restart the agent session, then ask for example: *"Build a Mini Engine game where everyone secretly picks a number and the closest to 2/3 of the average wins; show the results on the shared screen."* The skill triggers on such requests; you can also name it (`/build-mini-engine-game` in Claude Code). It asks once whether to use MiniEngineUI; say *"use MiniEngineUI"* up front to skip the question.
 
-**Other agents:** Codex, Gemini CLI, Copilot CLI and other agents that read the SKILL.md format also look in `~/.agents/skills/` (copy or symlink the same directories there, or into the location your agent documents). Agents without skill support can be pointed at the files directly: *"Read skills/build-mini-engine-game/SKILL.md in the Mini Engine SDK and follow it."* The skills test a game first with `me dev` from the Mini Engine CLI (a local fake engine, no checkout needed) and then on a real Mini Engine (a local checkout, or a hosted engine plus the CLI to upload) and scaffold with `npx -p @casb02/mini-engine-sdk create-mini-game` or `me game new`.
+**Other agents:** Codex, Gemini CLI, Copilot CLI and other agents that read the SKILL.md format also look in `~/.agents/skills/` (copy or symlink the same directories there, or into the location your agent documents). Agents without skill support can be pointed at the files directly: *"Read skills/build-mini-engine-game/SKILL.md in the Mini Engine SDK and follow it."* The skills scaffold with `me game new` or `npx -p @casb02/mini-engine-sdk create-mini-game`, test a game first with `me dev` from the Mini Engine CLI (a local stand-in for Mini Engine) and then as a test release uploaded with `me game upload`.
 
 ## Using the client
 
@@ -113,14 +116,14 @@ await client.ready(true);
 // await client.action('vote', { yes: true });
 ```
 
-Do not open generated HTML with file:// or a static server. Mini Engine supplies the API, room sessions, WebSockets and game asset routes. Games are locally trusted code; review packages before installing them. Host-private data belongs in `data.json`, loaded through the authenticated game-data API, rather than public assets. A room can play with a player's own [set](#sets) instead; the same API then returns that set.
+Do not open generated HTML with file:// or a static server: the pages need the API, room sessions, WebSockets and game asset routes. Use `me dev` on your own computer. Games run as trusted code on the server's origin, so only people with a dev key can publish. Host-private data belongs in `data.json`, loaded through the authenticated game-data API, rather than public assets. A room can play with a player's own [set](#sets) instead; the same API then returns that set.
 
 ## HTTP and accounts
 
 ```ts
 import { ApiClient, MiniEngine, saveSession } from '@casb02/mini-engine-sdk';
 
-const api = new ApiClient({ baseUrl: 'http://localhost:3000' });
+const api = new ApiClient({ baseUrl: 'https://miniengine.nl' });
 const { games } = await api.getGames();
 const { token } = await api.login({ username: 'sander', password: 'your-password' });
 api.accountToken = token;
@@ -230,7 +233,7 @@ Needs Mini Engine 0.5. A game declares achievements in its manifest; players wit
 ]
 ```
 
-`Manifest.achievements` is optional: at most 50 per game, `id` matches `^[a-z0-9][a-z0-9_-]{0,47}$` and is unique, `title` has 1–60 characters and `description` 1–160. The engine checks them whenever it loads a game, built-in or uploaded, and `GET /api/v1/games` shows them.
+`Manifest.achievements` is optional: at most 50 per game, `id` matches `^[a-z0-9][a-z0-9_-]{0,47}$` and is unique, `title` has 1–60 characters and `description` 1–160. `me dev`, `me game upload` and the server check them, and `api.getGames()` lists them.
 
 Built-in server games (Common Dice, Jeopardy) award their own achievements at the end of a round, with `source: 'server'`. In a browser-host game the host awards them:
 
@@ -312,7 +315,7 @@ Needs Mini Engine 0.5. A game can let players save their own content on their ac
 | `integer`, `number` | `minimum`, `maximum` |
 | `boolean` | none |
 
-Every node may also have a `title` and a `description`. Counts are whole numbers of 0 or more, and a minimum is never above its maximum. Anything else, such as `$ref`, `pattern`, `default` or a `null` type, makes the engine refuse the game, whether it is on disk or uploaded. A schema is at most 8 levels deep and has at most 256 nodes. A property that is not `required` may be left out, but not set to `null`. When data does not fit, the error names the place, for example `categories[0].clues[2].question: gebruik 1–240 tekens.` `settings_schema` keeps its own, flat rules.
+Every node may also have a `title` and a `description`. Counts are whole numbers of 0 or more, and a minimum is never above its maximum. Anything else, such as `$ref`, `pattern`, `default` or a `null` type, makes `me dev`, `me game upload` and the server refuse the game. A schema is at most 8 levels deep and has at most 256 nodes. A property that is not `required` may be left out, but not set to `null`. When data does not fit, the error names the place, for example `categories[0].clues[2].question: gebruik 1–240 tekens.` `settings_schema` keeps its own, flat rules.
 
 Saving sets uses the account token; a confirmed email address is not needed.
 
@@ -355,7 +358,7 @@ Bump `version` in `package.json`, merge, then tag: `git tag v0.5.2 && git push o
 
 `sessionKey(code,role)`, `saveSession(credentials,storage?)`, `loadSession(code,role,storage?)`, `removeSession(code,role,storage?)` retain the existing `mini-engine:CODE:ROLE` sessionStorage format. Storage helpers never put secrets into URL query strings. The room launcher consumes display credentials from the URL fragment before loading the game iframe.
 
-`dist/mini-engine.js` is one bundled ES module suitable for the engine's `/sdk/mini-engine.js` route; it has no runtime package dependencies. Its declarations are the committed file `types/mini-engine.d.ts` (see [TypeScript types](#typescript-types)). Engine maintainers vendor both with the engine's `npm run sdk:sync -- /path/to/mini-engine-sdk`; game packages consume the engine-served copy.
+`dist/mini-engine.js` is one bundled ES module; it has no runtime package dependencies. Its declarations are the committed file `types/mini-engine.d.ts` (see [TypeScript types](#typescript-types)). Mini Engine and `me dev` serve a pinned copy at `/sdk/mini-engine.js` (declarations at `/sdk/mini-engine.d.ts`); game packages import that copy.
 
 ```sh
 npm run check         # Types up to date, build, strict typed consumer, transport/API/CLI tests
@@ -369,15 +372,8 @@ The whole public API is described by one self-contained declaration file, [`type
 Where the types are picked up:
 
 - **npm/tarball consumers:** `package.json` `types` and `exports["."].types` point at `types/mini-engine.d.ts`, so `import { MiniEngine } from '@casb02/mini-engine-sdk'` is typed in TypeScript and in JavaScript editors.
-- **Mini Engine checkout:** `npm run sdk:sync` copies the file to the engine's `web/mini-engine.d.ts` next to the served bundle and pins its hash in `sdk-version.json` (`npm run sdk:check` verifies both).
-- **Scaffolded games:** `create-mini-game` writes `jsconfig.json` and a copy of the declarations in `types/mini-engine.d.ts`. Game code keeps importing the rooted browser path `/sdk/mini-engine.js`; TypeScript applies `compilerOptions.paths` to that specifier and resolves it to `../../web/mini-engine.d.ts` when the game lives in an engine checkout's `games/<slug>/` (always matching the SDK that engine serves), otherwise to the game's own `types/mini-engine.d.ts`. `checkJs` and `strict` are on, so VS Code and other TypeScript-based editors give completion and underline wrong SDK calls in plain JavaScript without a build step or an import map. The generated `assets/app.js` declares its state and settings shapes with JSDoc (`@typedef`, `@type {MiniEngine<PublicState, Settings>}`) and passes the check. From a terminal: `npx -p typescript tsc -p jsconfig.json` inside the game directory. The engine only serves `assets/`, so `jsconfig.json` and `types/` never reach browsers.
+- **Scaffolded games:** `create-mini-game` writes `jsconfig.json` and a copy of the declarations in `types/mini-engine.d.ts`. Game code keeps importing the rooted browser path `/sdk/mini-engine.js`; TypeScript applies `compilerOptions.paths` to that specifier and resolves it to the game's own `types/mini-engine.d.ts`. `checkJs` and `strict` are on, so VS Code and other TypeScript-based editors give completion and underline wrong SDK calls in plain JavaScript without a build step or an import map. The generated `assets/app.js` declares its state and settings shapes with JSDoc (`@typedef`, `@type {MiniEngine<PublicState, Settings>}`) and passes the check. From a terminal: `npx -p typescript tsc -p jsconfig.json` inside the game directory. Only `assets/` is served, so `jsconfig.json` and `types/` never reach browsers; `me game new` also lists them in `.meignore`.
 
 CI runs those checks on Node 22 and 24. Publishing only happens from a version tag (see [Releasing](#releasing)).
 
-To test the generated game against a real engine, first build a Mini Engine 0.5 checkout with `cargo build`, then run:
-
-```sh
-MINI_ENGINE_CHECKOUT=/absolute/path/to/mini-engine npm run test:engine
-```
-
-This optional integration check starts an isolated engine with a temporary database, loads the generated package through its actual catalog, and executes all three generated role scripts in a DOM harness with real WebSockets. It verifies readiness, start, simultaneous votes, shared display totals and round reset, then removes its temporary data.
+`npm run test:engine` is an optional integration check for the maintainers of Mini Engine itself: it needs the private engine repository. Skip it; `npm run check` and `npm run test:package` are what CI and releases rely on. To check a generated game end to end, play it with `me dev` and the build skill's `scripts/play.mjs`.
