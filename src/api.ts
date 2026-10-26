@@ -1,4 +1,4 @@
-import type { Account, AccountAchievement, AccountSession, AccountStats, CreateRoomOptions, Json, JsonCompatible, Manifest, MediaList, MediaUpload, NewSet, RoomCredentials, RoomInfo, SavedSet, SetFilter, SetSummary, Snapshot } from './types.js';
+import type { Account, AccountAchievement, AccountSession, AccountStats, CreateRoomOptions, Json, JsonCompatible, Manifest, MediaList, MediaRequest, MediaUpload, NewSet, RoomCredentials, RoomInfo, SavedSet, SetFilter, SetSummary, Snapshot } from './types.js';
 
 export class MiniEngineError extends Error {
   constructor(message: string, public code = 'client_error', public status?: number) {
@@ -116,8 +116,15 @@ export class ApiClient {
     const type = contentType || (file instanceof Blob ? file.type : '') || 'application/octet-stream';
     return this.call('/accounts/media', { method: 'POST', token: this.accountToken, headers: { 'Content-Type': type }, body: file as BodyInit });
   }
-  /** The account's images, newest first, with the bytes used and the quota. */
+  /** The account's images, newest first, with the bytes used, the account's space and its latest request for space. */
   listMedia(): Promise<MediaList> { return this.call('/accounts/media', { token: this.accountToken }); }
+  /**
+   * Asks the admins for image space, with an optional note of at most 500 characters. Engine 0.8.1+ (older engines: 404).
+   * Once per 7 days: sooner is 429 `media_request_wait`. A new request replaces one that is still pending.
+   */
+  requestMediaSpace({ message }: { message?: string | null } = {}): Promise<{ request: MediaRequest }> {
+    return this.call('/accounts/media/requests', { method: 'POST', token: this.accountToken, body: JSON.stringify(message === undefined ? {} : { message }) });
+  }
   /** Deletes an image; 409 `media_in_use` while one of the account's sets uses it. */
   deleteMedia(id: string): Promise<null> {
     return this.call(`/accounts/media/${encodeURIComponent(id)}`, { method: 'DELETE', token: this.accountToken });

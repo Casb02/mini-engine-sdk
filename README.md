@@ -28,7 +28,7 @@ npm install @casb02/mini-engine-sdk
 
 ```sh
 npm install github:Casb02/mini-engine-sdk           # latest main
-npm install github:Casb02/mini-engine-sdk#v0.7.0    # a release tag
+npm install github:Casb02/mini-engine-sdk#v0.7.1    # a release tag
 ```
 
 Requires Node.js 22+. The package ships the ESM client (`dist/`), one bundled declaration file (`types/`), the `create-mini-game` scaffolder (`bin/`) and the AI agent skills (`skills/`).
@@ -149,9 +149,9 @@ console.log(await api.stats());
 
 Accounts are optional. Omitting `accountToken` creates/joins as a guest. Create/join requests use the account bearer; room snapshot and game-data requests use their explicit room bearer. Register/login return `{account,token}` without storing credentials automatically. Set `api.accountToken` after login/register and choose your own persistence. Logout clears it after server success.
 
-`ApiClient` methods: `getGames()`, `getGame(id)`, `createRoom(options)`, `joinRoom(code,name)`, `getRoom(code,roomToken)`, `roomInfo(code)`, `gameData(code,hostToken)`, `displayToken(code,hostToken)`, `accountConfig()`, `register({username,password,display_name,email},{turnstileToken?}?)`, `verifyEmail(token)`, `setEmail(email,{turnstileToken?}?)`, `login({username,password})`, `me()`, `stats()`, `achievements(accountToken?)`, `listSets({game_id?,kind?}?)`, `getSet(id)`, `createSet({game_id,kind,title,data})`, `updateSet(id,{title,data})`, `deleteSet(id)`, `uploadMedia(file,{contentType?}?)`, `listMedia()`, `deleteMedia(id)`, `logout()`.
+`ApiClient` methods: `getGames()`, `getGame(id)`, `createRoom(options)`, `joinRoom(code,name)`, `getRoom(code,roomToken)`, `roomInfo(code)`, `gameData(code,hostToken)`, `displayToken(code,hostToken)`, `accountConfig()`, `register({username,password,display_name,email},{turnstileToken?}?)`, `verifyEmail(token)`, `setEmail(email,{turnstileToken?}?)`, `login({username,password})`, `me()`, `stats()`, `achievements(accountToken?)`, `listSets({game_id?,kind?}?)`, `getSet(id)`, `createSet({game_id,kind,title,data})`, `updateSet(id,{title,data})`, `deleteSet(id)`, `uploadMedia(file,{contentType?}?)`, `listMedia()`, `deleteMedia(id)`, `requestMediaSpace({message?}?)`, `logout()`.
 
-`achievements` needs Mini Engine 0.5 (see [Achievements](#achievements)); so do the set methods and `createRoom({set_id})` (see [Sets](#sets)). The media methods need Mini Engine 0.8 (see [Images in sets](#images-in-sets)). An older engine answers the new routes with 404 and refuses `set_id` with 400. When the server asks for a robot check, `accountConfig()` returns the Cloudflare Turnstile site key; pass the widget's token to `register` or `setEmail` as `{turnstileToken}` and the SDK sends it in the `X-Turnstile-Token` header (see the [Accounts](https://docs.miniengine.nl/api/accounts.html#robotcheck) API page). Since engine v0.4 registration needs an email address; the engine mails a confirmation link (`?verify=<token>`), which `verifyEmail` confirms while signed in to that account (set `accountToken` first). `Account` includes `email` and `email_verified`. `displayToken` rotates the display credential and returns `{token}`; only share it through the room launcher's URL fragment.
+`achievements` needs Mini Engine 0.5 (see [Achievements](#achievements)); so do the set methods and `createRoom({set_id})` (see [Sets](#sets)). The media methods need Mini Engine 0.8, `requestMediaSpace` 0.8.1 (see [Images in sets](#images-in-sets)). An older engine answers the new routes with 404 and refuses `set_id` with 400. When the server asks for a robot check, `accountConfig()` returns the Cloudflare Turnstile site key; pass the widget's token to `register` or `setEmail` as `{turnstileToken}` and the SDK sends it in the `X-Turnstile-Token` header (see the [Accounts](https://docs.miniengine.nl/api/accounts.html#robotcheck) API page). Since engine v0.4 registration needs an email address; the engine mails a confirmation link (`?verify=<token>`), which `verifyEmail` confirms while signed in to that account (set `accountToken` first). `Account` includes `email` and `email_verified`. `displayToken` rotates the display credential and returns `{token}`; only share it through the room launcher's URL fragment.
 
 The original same-origin `http(path,{token,...fetchOptions})`, `getGames()`, `createRoom(options)` and `joinRoom(code,name)` exports remain available. `getGames()` returns `{games}`. `ApiClient({baseUrl,accountToken,fetch})` supports a separate server and custom fetch implementation; cross-origin browser requests require the server's CORS support.
 
@@ -378,23 +378,24 @@ const data = { questions: [{ question: 'Wie is dit?', image: media.url }] };
 | Method | Route | Notes |
 | --- | --- | --- |
 | `uploadMedia(file,{contentType?}?)` | `POST /api/v1/accounts/media` | `file` is a `Blob`, `ArrayBuffer` or `Uint8Array`, sent as the raw request body with `contentType`, else the Blob's type. Resolves to `{media, used_bytes, limit_bytes}`. |
-| `listMedia()` | `GET /api/v1/accounts/media` | `{media, used_bytes, limit_bytes}`, newest first. |
+| `listMedia()` | `GET /api/v1/accounts/media` | `{media, used_bytes, limit_bytes, request}`, newest first. `request` is the account's latest request for space or `null` (engine 0.8.1+). |
+| `requestMediaSpace({message?}?)` | `POST /api/v1/accounts/media/requests` | Asks the admins for space, with an optional note of at most 500 characters (else 400 `invalid_request`). Resolves to `{request}`. Once per 7 days: sooner is 429 `media_request_wait`; a new request replaces one that is still pending. Needs Mini Engine 0.8.1; an older engine answers 404. |
 | `deleteMedia(id)` | `DELETE /api/v1/accounts/media/{id}` | Resolves to `null`. 409 `media_in_use` while one of the account's sets uses it; 404 `media_not_found`, also for another account's image. |
 
-`MediaItem` is `{id, url, content_type, width, height, size, created_at}`; `url` is `/media/<id>` and is public (the 32-hex id is unguessable), so guests in a room can load it.
+`MediaItem` is `{id, url, content_type, width, height, size, created_at}`; `url` is `/media/<id>` and is public (the 32-hex id is unguessable), so guests in a room can load it. `MediaRequest` is `{id, status, message, requested_at, next_request_at, decided_at, granted_mb}`: `status` is `pending`, `granted` or `rejected`, times are seconds since 1970, `next_request_at` is when the account may ask again and `granted_mb` the space granted in MiB (`decided_at` and `granted_mb` are `null` until decided).
 
 | Limit | Value |
 | --- | --- |
 | Upload | PNG, JPEG, WebP or GIF (first frame), detected from the bytes; at most 10 MiB (413 `media_too_large`). Anything else, such as SVG or HEIC: 415 `media_unsupported`. Undecodable or over 40 million pixels: 400 `media_invalid`. |
 | Stored image | Re-encoded as JPEG, or PNG when it has transparency, without metadata (EXIF, GPS), upright, longest side at most 1920 px (never enlarged), at most 1 MiB. |
-| Per account | 250 MiB of images in total (409 `quota_media`). |
+| Per account | `limit_bytes`, which depends on the account since engine 0.8.1 and may be 0: unless an admin chose an amount, an admin has 1 GiB, an account with a working dev key 250 MiB and everyone else nothing. Admins can give any whole number of MiB from 0 to 1048576. An upload beyond it: 409 `quota_media`. Lowering the space keeps the images already stored (and the sets using them); only new uploads are refused. Ask for more with `requestMediaSpace`. |
 | Per set | At most 100 distinct images and 50 MiB together (409 `quota_set_media` on `createSet`/`updateSet`). |
 | Unused images | An image that none of the account's sets uses and that is older than 24 hours is deleted at the account's next upload or set save: save the set within a day of uploading. |
 | Uploads | 60 per minute per address (429 `rate_limit`). |
 
 ## Releasing
 
-Bump `version` in `package.json`, merge, then tag: `git tag v0.7.0 && git push origin v0.7.0`. The [publish workflow](.github/workflows/publish.yml) runs the full check and publishes the tag to GitHub Packages with the repository's own `GITHUB_TOKEN`; the tag must match the package version.
+Bump `version` in `package.json`, merge, then tag: `git tag v0.7.1 && git push origin v0.7.1`. The [publish workflow](.github/workflows/publish.yml) runs the full check and publishes the tag to GitHub Packages with the repository's own `GITHUB_TOKEN`; the tag must match the package version.
 
 ## Sessions and distribution
 
