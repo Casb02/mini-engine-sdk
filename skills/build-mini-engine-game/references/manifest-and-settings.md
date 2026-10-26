@@ -192,7 +192,7 @@ Limits (the engine applies them; the game only shows the result):
 | Upload formats | PNG, JPEG, WebP, GIF (first frame), detected from the bytes | 415 `media_unsupported` (SVG, HEIC, …) |
 | Upload size | ≤ 10 MiB raw; ≤ 40 million pixels | 413 `media_too_large`; 400 `media_invalid` |
 | Stored image | Re-encoded JPEG (PNG when transparent), metadata stripped, upright, longest side ≤ 1920 px (never enlarged), ≤ 1 MiB | — |
-| Per account | ≤ 250 MiB of images | 409 `quota_media` |
+| Per account | ≤ `limit_bytes`, the account's own space (engine 0.8.1+; may be 0): unless an admin chose an amount, admins 1 GiB, accounts with a working dev key 250 MiB, others nothing. Lowering it keeps stored images; only new uploads are refused. More: `ApiClient.requestMediaSpace`, once per 7 days | 409 `quota_media`; 429 `media_request_wait` |
 | Per set | ≤ 100 distinct images, ≤ 50 MiB together | 409 `quota_set_media` |
 | Unused images | Deleted once older than 24 h while no set of the account uses them | — |
 | Uploads | 60 per minute per address | 429 `rate_limit` |

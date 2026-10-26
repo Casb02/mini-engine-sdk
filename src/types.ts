@@ -127,9 +127,30 @@ export interface MediaItem {
   /** Seconds since the Unix epoch. */
   created_at: number;
 }
-/** `used_bytes` counts every image of the account; `limit_bytes` is the account quota (250 MiB). */
+/**
+ * `used_bytes` counts every image of the account; `limit_bytes` is that account's space and may be 0.
+ * Since engine 0.8.1 it depends on the account: unless an admin chose an amount, an admin has 1 GiB,
+ * an account with a working dev key 250 MiB and everyone else nothing.
+ */
 export interface MediaUpload { media: MediaItem; used_bytes: number; limit_bytes: number }
-export interface MediaList { media: MediaItem[]; used_bytes: number; limit_bytes: number }
+/** A request to the admins for image space. Engine 0.8.1+. Times are seconds since the Unix epoch. */
+export interface MediaRequest {
+  id: number;
+  status: 'pending' | 'granted' | 'rejected';
+  /** The player's note, empty when none was given. */
+  message: string;
+  requested_at: number;
+  /** From this moment the account may ask again (one request per 7 days). */
+  next_request_at: number;
+  decided_at: number | null;
+  /** The space an admin granted, in MiB. */
+  granted_mb: number | null;
+}
+export interface MediaList {
+  media: MediaItem[]; used_bytes: number; limit_bytes: number;
+  /** The account's latest request for space, or `null`. Engine 0.8.1+. */
+  request: MediaRequest | null;
+}
 export interface Account { id: string; username: string; display_name: string; created_at: string | number; email: string | null; email_verified: boolean }
 export interface AccountSession { account: Account; token: string }
 export interface AccountStats {

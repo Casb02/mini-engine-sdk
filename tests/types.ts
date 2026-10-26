@@ -1,4 +1,4 @@
-import { ApiClient, MiniEngine, type Account, type AccountAchievement, type AchievementEarned, type Ack, type Manifest, type MediaItem, type MediaList, type MediaUpload, type ActionPayloads, type Json, type JsonCompatible, type Realtime, type RealtimeFrom, type RoomSet, type SavedSet, type SetKind, type SetSchema, type SetSummary, type Snapshot } from '@casb02/mini-engine-sdk';
+import { ApiClient, MiniEngine, type Account, type AccountAchievement, type AchievementEarned, type Ack, type Manifest, type MediaItem, type MediaList, type MediaRequest, type MediaUpload, type ActionPayloads, type Json, type JsonCompatible, type Realtime, type RealtimeFrom, type RoomSet, type SavedSet, type SetKind, type SetSchema, type SetSummary, type Snapshot } from '@casb02/mini-engine-sdk';
 const api = new ApiClient({ baseUrl: 'http://localhost:3000', accountToken: 'secret' });
 void api.createRoom({ game_id: 'vote', config: { host_mode: 'moderator' } });
 // 0.5.2: the creating device is the TV and has no seat.
@@ -181,5 +181,15 @@ void api.uploadMedia(new ArrayBuffer(4));
 // @ts-expect-error uploads take bytes, not a URL
 void api.uploadMedia('https://example.com/cat.png');
 void api.listMedia().then((list: MediaList) => { const ids: string[] = list.media.map(item => item.id); void ids; });
+// 0.7.1: the account's space and its latest request for more.
+void api.listMedia().then((list: MediaList) => {
+  const request: MediaRequest | null = list.request;
+  if (request) { const status: 'pending' | 'granted' | 'rejected' = request.status; const granted: number | null = request.granted_mb; const decided: number | null = request.decided_at; const next: number = request.next_request_at; void status; void granted; void decided; void next; }
+});
+void api.requestMediaSpace({ message: 'For my quiz' }).then(({ request }: { request: MediaRequest }) => { const id: number = request.id; const message: string = request.message; void id; void message; });
+void api.requestMediaSpace({ message: null });
+void api.requestMediaSpace();
+// @ts-expect-error the message is text
+void api.requestMediaSpace({ message: 500 });
 const removed: Promise<null> = api.deleteMedia('0123456789abcdef0123456789abcdef');
 void removed;

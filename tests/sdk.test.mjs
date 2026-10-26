@@ -442,6 +442,27 @@ test('media uploads send the raw bytes with their own type, not JSON', async () 
   assert.equal(calls[2].headers.get('Content-Type'), 'application/octet-stream');
 });
 
+test('media space requests post an optional message as JSON', async () => {
+  const calls=[];
+  const request={id:7, status:'pending', message:'Voor mijn quiz', requested_at:1793030400, next_request_at:1793635200, decided_at:null, granted_mb:null};
+  const fetch=async(url, options)=>{ calls.push({url, ...options}); return {ok:true,status:201,json:async()=>({request})}; };
+  const api=new ApiClient({baseUrl:'https://party.test', accountToken:'account', fetch});
+  assert.deepEqual(await api.requestMediaSpace({message:'Voor mijn quiz'}), {request});
+  await api.requestMediaSpace();
+  assert.deepEqual(calls.map(call=>[call.method, call.url]), [
+    ['POST', 'https://party.test/api/v1/accounts/media/requests'],
+    ['POST', 'https://party.test/api/v1/accounts/media/requests'],
+  ]);
+  assert.ok(calls.every(call=>call.headers.get('Authorization')==='Bearer account'));
+  assert.deepEqual(JSON.parse(calls[0].body), {message:'Voor mijn quiz'});
+  assert.deepEqual(JSON.parse(calls[1].body), {});
+});
+
+test('media space requests keep the wait code', async () => {
+  const api=new ApiClient({accountToken:'account', fetch:async()=>({ok:false,status:429,json:async()=>({error:{code:'media_request_wait',message:'Je kunt over 7 dagen weer ruimte aanvragen.'}})})});
+  await assert.rejects(api.requestMediaSpace(), error=>error.code==='media_request_wait'&&error.status===429);
+});
+
 test('media errors keep their server code', async () => {
   const api=new ApiClient({accountToken:'account', fetch:async()=>({ok:false,status:415,json:async()=>({error:{code:'media_unsupported',message:'Gebruik een PNG, JPEG, WebP of GIF.'}})})});
   await assert.rejects(api.uploadMedia(new Uint8Array([1])), error=>error.code==='media_unsupported'&&error.status===415&&error.message.startsWith('Gebruik'));
