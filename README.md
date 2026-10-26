@@ -28,7 +28,7 @@ npm install @casb02/mini-engine-sdk
 
 ```sh
 npm install github:Casb02/mini-engine-sdk           # latest main
-npm install github:Casb02/mini-engine-sdk#v0.6.0    # a release tag
+npm install github:Casb02/mini-engine-sdk#v0.7.0    # a release tag
 ```
 
 Requires Node.js 22+. The package ships the ESM client (`dist/`), one bundled declaration file (`types/`), the `create-mini-game` scaffolder (`bin/`) and the AI agent skills (`skills/`).
@@ -394,7 +394,7 @@ const data = { questions: [{ question: 'Wie is dit?', image: media.url }] };
 
 ## Releasing
 
-Bump `version` in `package.json`, merge, then tag: `git tag v0.6.0 && git push origin v0.6.0`. The [publish workflow](.github/workflows/publish.yml) runs the full check and publishes the tag to GitHub Packages with the repository's own `GITHUB_TOKEN`; the tag must match the package version.
+Bump `version` in `package.json`, merge, then tag: `git tag v0.7.0 && git push origin v0.7.0`. The [publish workflow](.github/workflows/publish.yml) runs the full check and publishes the tag to GitHub Packages with the repository's own `GITHUB_TOKEN`; the tag must match the package version.
 
 ## Sessions and distribution
 
