@@ -1,4 +1,4 @@
-import { ApiClient, MiniEngine, type Account, type AccountAchievement, type AchievementEarned, type Ack, type Manifest, type ActionPayloads, type Json, type JsonCompatible, type Realtime, type RealtimeFrom, type RoomSet, type SavedSet, type SetKind, type SetSchema, type SetSummary, type Snapshot } from '@casb02/mini-engine-sdk';
+import { ApiClient, MiniEngine, type Account, type AccountAchievement, type AchievementEarned, type Ack, type Manifest, type MediaItem, type MediaList, type MediaUpload, type ActionPayloads, type Json, type JsonCompatible, type Realtime, type RealtimeFrom, type RoomSet, type SavedSet, type SetKind, type SetSchema, type SetSummary, type Snapshot } from '@casb02/mini-engine-sdk';
 const api = new ApiClient({ baseUrl: 'http://localhost:3000', accountToken: 'secret' });
 void api.createRoom({ game_id: 'vote', config: { host_mode: 'moderator' } });
 // 0.5.2: the creating device is the TV and has no seat.
@@ -159,3 +159,27 @@ client.on('snapshot', (room: Snapshot) => {
 });
 const partyGame: Manifest = { ...manifest, runtime: 'host', host_modes: ['playing', 'tv'], default_host_mode: 'playing' };
 void partyGame;
+const pictureSchema: SetSchema = { type: 'object', properties: { question: { type: 'string', minLength: 1, maxLength: 240 }, image: { type: 'string', format: 'image', title: 'Afbeelding' } }, required: ['question'], additionalProperties: false };
+void pictureSchema;
+// @ts-expect-error an image field has no length bounds
+const boundedImage: SetSchema = { type: 'string', format: 'image', maxLength: 80 };
+void boundedImage;
+// @ts-expect-error image is the only format
+const otherFormat: SetSchema = { type: 'string', format: 'email' };
+void otherFormat;
+// @ts-expect-error formats belong to strings
+const numberFormat: SetSchema = { type: 'integer', format: 'image' };
+void numberFormat;
+declare const picture: Blob;
+void api.uploadMedia(picture).then((uploaded: MediaUpload) => {
+  const item: MediaItem = uploaded.media;
+  const src: string = item.url; const type: 'image/jpeg' | 'image/png' = item.content_type; const left: number = uploaded.limit_bytes - uploaded.used_bytes;
+  void src; void type; void left;
+});
+void api.uploadMedia(new Uint8Array(4), { contentType: 'image/png' });
+void api.uploadMedia(new ArrayBuffer(4));
+// @ts-expect-error uploads take bytes, not a URL
+void api.uploadMedia('https://example.com/cat.png');
+void api.listMedia().then((list: MediaList) => { const ids: string[] = list.media.map(item => item.id); void ids; });
+const removed: Promise<null> = api.deleteMedia('0123456789abcdef0123456789abcdef');
+void removed;

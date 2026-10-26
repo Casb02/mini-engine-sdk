@@ -149,9 +149,9 @@ console.log(await api.stats());
 
 Accounts are optional. Omitting `accountToken` creates/joins as a guest. Create/join requests use the account bearer; room snapshot and game-data requests use their explicit room bearer. Register/login return `{account,token}` without storing credentials automatically. Set `api.accountToken` after login/register and choose your own persistence. Logout clears it after server success.
 
-`ApiClient` methods: `getGames()`, `getGame(id)`, `createRoom(options)`, `joinRoom(code,name)`, `getRoom(code,roomToken)`, `roomInfo(code)`, `gameData(code,hostToken)`, `displayToken(code,hostToken)`, `accountConfig()`, `register({username,password,display_name,email},{turnstileToken?}?)`, `verifyEmail(token)`, `setEmail(email,{turnstileToken?}?)`, `login({username,password})`, `me()`, `stats()`, `achievements(accountToken?)`, `listSets({game_id?,kind?}?)`, `getSet(id)`, `createSet({game_id,kind,title,data})`, `updateSet(id,{title,data})`, `deleteSet(id)`, `logout()`.
+`ApiClient` methods: `getGames()`, `getGame(id)`, `createRoom(options)`, `joinRoom(code,name)`, `getRoom(code,roomToken)`, `roomInfo(code)`, `gameData(code,hostToken)`, `displayToken(code,hostToken)`, `accountConfig()`, `register({username,password,display_name,email},{turnstileToken?}?)`, `verifyEmail(token)`, `setEmail(email,{turnstileToken?}?)`, `login({username,password})`, `me()`, `stats()`, `achievements(accountToken?)`, `listSets({game_id?,kind?}?)`, `getSet(id)`, `createSet({game_id,kind,title,data})`, `updateSet(id,{title,data})`, `deleteSet(id)`, `uploadMedia(file,{contentType?}?)`, `listMedia()`, `deleteMedia(id)`, `logout()`.
 
-`achievements` needs Mini Engine 0.5 (see [Achievements](#achievements)); so do the set methods and `createRoom({set_id})` (see [Sets](#sets)). An older engine answers the new routes with 404 and refuses `set_id` with 400. When the server asks for a robot check, `accountConfig()` returns the Cloudflare Turnstile site key; pass the widget's token to `register` or `setEmail` as `{turnstileToken}` and the SDK sends it in the `X-Turnstile-Token` header (see the [Accounts](https://docs.miniengine.nl/api/accounts.html#robotcheck) API page). Since engine v0.4 registration needs an email address; the engine mails a confirmation link (`?verify=<token>`), which `verifyEmail` confirms while signed in to that account (set `accountToken` first). `Account` includes `email` and `email_verified`. `displayToken` rotates the display credential and returns `{token}`; only share it through the room launcher's URL fragment.
+`achievements` needs Mini Engine 0.5 (see [Achievements](#achievements)); so do the set methods and `createRoom({set_id})` (see [Sets](#sets)). The media methods need Mini Engine 0.8 (see [Images in sets](#images-in-sets)). An older engine answers the new routes with 404 and refuses `set_id` with 400. When the server asks for a robot check, `accountConfig()` returns the Cloudflare Turnstile site key; pass the widget's token to `register` or `setEmail` as `{turnstileToken}` and the SDK sends it in the `X-Turnstile-Token` header (see the [Accounts](https://docs.miniengine.nl/api/accounts.html#robotcheck) API page). Since engine v0.4 registration needs an email address; the engine mails a confirmation link (`?verify=<token>`), which `verifyEmail` confirms while signed in to that account (set `accountToken` first). `Account` includes `email` and `email_verified`. `displayToken` rotates the display credential and returns `{token}`; only share it through the room launcher's URL fragment.
 
 The original same-origin `http(path,{token,...fetchOptions})`, `getGames()`, `createRoom(options)` and `joinRoom(code,name)` exports remain available. `getGames()` returns `{games}`. `ApiClient({baseUrl,accountToken,fetch})` supports a separate server and custom fetch implementation; cross-origin browser requests require the server's CORS support.
 
@@ -316,7 +316,7 @@ Needs Mini Engine 0.5. A game can let players save their own content on their ac
 | --- | --- |
 | `object` | `properties` (required), `required` (unique names of its own properties), `additionalProperties: false` (required) |
 | `array` | `items` (required), `minItems`, `maxItems` |
-| `string` | `minLength`, `maxLength` (in characters), `enum` (at most 256 unique strings, each within the length bounds) |
+| `string` | `minLength`, `maxLength` (in characters), `enum` (at most 256 unique strings, each within the length bounds); or only `format: "image"` (engine 0.8+, see [Images in sets](#images-in-sets)) |
 | `integer`, `number` | `minimum`, `maximum` |
 | `boolean` | none |
 
@@ -354,6 +354,43 @@ const credentials = await api.createRoom({ game_id: 'jeopardy', set_id: saved.id
 - The room keeps its own copy. Editing or deleting the saved set later does not change a running room.
 - `Snapshot.set` is `{id, kind, title}` for every role, or `null` without a set, so a lobby or display can show "Bord: Filmavond". The content is never part of a snapshot.
 - The set replaces the game's `data.json` for that room. A built-in game plays with it; in a browser-host game the host reads it with `api.gameData(code, hostToken)`, which returns the set's `data` instead of `data.json`. Give `data.json` the shape of your set kind, or check `room.set?.kind`, so one code path reads both.
+
+### Images in sets
+
+Needs Mini Engine 0.8. A string field with `"format": "image"` holds a picture, such as a photo with a quiz question. It takes no `minLength`, `maxLength` or `enum`; leave it out of `required` to make it optional (an empty string is not an image).
+
+```json
+"properties": {
+  "question": { "type": "string", "minLength": 1, "maxLength": 240, "title": "Vraag" },
+  "image": { "type": "string", "format": "image", "title": "Afbeelding" }
+}
+```
+
+- In a saved set the value is `/media/<id>`: an image the same account uploaded. The set editor at `/home/sets` uploads it for the player; from code, `uploadMedia` returns it as `media.url`.
+- In the game's own `data.json` the value is a file in the package under `assets/`, such as `assets/vragen/1.png` (relative, no `..`), so a game can ship default pictures.
+- Show it with a plain `<img src>`: `/media/…` is on the engine's own origin, so the game CSP (`img-src 'self'`) allows it. An `assets/…` path is relative to the package root: resolve it from your own module, for example `new URL(value.slice('assets/'.length), import.meta.url).href` in `assets/app.js`.
+
+```ts
+const { media, used_bytes, limit_bytes } = await api.uploadMedia(file); // a File from <input type="file">, with api.accountToken set
+const data = { questions: [{ question: 'Wie is dit?', image: media.url }] };
+```
+
+| Method | Route | Notes |
+| --- | --- | --- |
+| `uploadMedia(file,{contentType?}?)` | `POST /api/v1/accounts/media` | `file` is a `Blob`, `ArrayBuffer` or `Uint8Array`, sent as the raw request body with `contentType`, else the Blob's type. Resolves to `{media, used_bytes, limit_bytes}`. |
+| `listMedia()` | `GET /api/v1/accounts/media` | `{media, used_bytes, limit_bytes}`, newest first. |
+| `deleteMedia(id)` | `DELETE /api/v1/accounts/media/{id}` | Resolves to `null`. 409 `media_in_use` while one of the account's sets uses it; 404 `media_not_found`, also for another account's image. |
+
+`MediaItem` is `{id, url, content_type, width, height, size, created_at}`; `url` is `/media/<id>` and is public (the 32-hex id is unguessable), so guests in a room can load it.
+
+| Limit | Value |
+| --- | --- |
+| Upload | PNG, JPEG, WebP or GIF (first frame), detected from the bytes; at most 10 MiB (413 `media_too_large`). Anything else, such as SVG or HEIC: 415 `media_unsupported`. Undecodable or over 40 million pixels: 400 `media_invalid`. |
+| Stored image | Re-encoded as JPEG, or PNG when it has transparency, without metadata (EXIF, GPS), upright, longest side at most 1920 px (never enlarged), at most 1 MiB. |
+| Per account | 250 MiB of images in total (409 `quota_media`). |
+| Per set | At most 100 distinct images and 50 MiB together (409 `quota_set_media` on `createSet`/`updateSet`). |
+| Unused images | An image that none of the account's sets uses and that is older than 24 hours is deleted at the account's next upload or set save: save the set within a day of uploading. |
+| Uploads | 60 per minute per address (429 `rate_limit`). |
 
 ## Releasing
 

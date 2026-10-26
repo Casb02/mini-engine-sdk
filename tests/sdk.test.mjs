@@ -413,3 +413,36 @@ test('set errors keep their server code', async () => {
   const api=new ApiClient({accountToken:'account', fetch:async()=>({ok:false,status:409,json:async()=>({error:{code:'quota_sets',message:'Je hebt al 50 sets.'}})})});
   await assert.rejects(api.createSet({game_id:'jeopardy', kind:'board', title:'Vol', data:{}}), error=>error.code==='quota_sets'&&error.status===409);
 });
+
+test('media uploads send the raw bytes with their own type, not JSON', async () => {
+  const calls=[];
+  const item={id:'a'.repeat(32), url:`/media/${'a'.repeat(32)}`, content_type:'image/jpeg', width:640, height:480, size:51200, created_at:1};
+  const replies=[{media:item, used_bytes:51200, limit_bytes:262144000}, {media:item, used_bytes:51200, limit_bytes:262144000}, {media:item, used_bytes:51200, limit_bytes:262144000}, {media:[item], used_bytes:51200, limit_bytes:262144000}, null];
+  const fetch=async(url, options)=>{ calls.push({url, ...options}); const body=replies.shift(); return body===null ? {ok:true,status:204} : {ok:true,status:201,json:async()=>body}; };
+  const api=new ApiClient({baseUrl:'https://party.test', accountToken:'account', fetch});
+  const photo=new Blob([new Uint8Array([0xff,0xd8,0xff])], {type:'image/jpeg'});
+  assert.deepEqual(await api.uploadMedia(photo), {media:item, used_bytes:51200, limit_bytes:262144000});
+  const png=new Uint8Array([0x89,0x50,0x4e,0x47]);
+  await api.uploadMedia(png, {contentType:'image/png'});
+  await api.uploadMedia(png.buffer);
+  assert.equal((await api.listMedia()).media[0].url, item.url);
+  assert.equal(await api.deleteMedia('a b'), null);
+  assert.deepEqual(calls.map(call=>[call.method ?? 'GET', call.url]), [
+    ['POST', 'https://party.test/api/v1/accounts/media'],
+    ['POST', 'https://party.test/api/v1/accounts/media'],
+    ['POST', 'https://party.test/api/v1/accounts/media'],
+    ['GET', 'https://party.test/api/v1/accounts/media'],
+    ['DELETE', 'https://party.test/api/v1/accounts/media/a%20b'],
+  ]);
+  assert.ok(calls.every(call=>call.headers.get('Authorization')==='Bearer account'));
+  assert.equal(calls[0].body, photo);
+  assert.equal(calls[0].headers.get('Content-Type'), 'image/jpeg');
+  assert.equal(calls[1].body, png);
+  assert.equal(calls[1].headers.get('Content-Type'), 'image/png');
+  assert.equal(calls[2].headers.get('Content-Type'), 'application/octet-stream');
+});
+
+test('media errors keep their server code', async () => {
+  const api=new ApiClient({accountToken:'account', fetch:async()=>({ok:false,status:415,json:async()=>({error:{code:'media_unsupported',message:'Gebruik een PNG, JPEG, WebP of GIF.'}})})});
+  await assert.rejects(api.uploadMedia(new Uint8Array([1])), error=>error.code==='media_unsupported'&&error.status===415&&error.message.startsWith('Gebruik'));
+});
