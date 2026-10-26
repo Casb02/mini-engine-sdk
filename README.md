@@ -60,7 +60,7 @@ npx -p @casb02/mini-engine-sdk create-mini-game --help
 | Template | What it is | Shows |
 | --- | --- | --- |
 | `stemmen` (default) | Everyone votes yes or no on one question; every screen shows the count. | The queue, a host who plays along, settings shown as text, a shared display |
-| `quiz` | Multiple-choice questions on a timer, points and a final board. | Secret answers in `host_state`, `player_states`, `data.json` and own sets (one question per line in the set form), timers on the host, an achievement |
+| `quiz` | Multiple-choice questions on a timer, points and a final board. | Secret answers in `host_state`, `player_states`, `data.json` and own sets (a block per question with an optional picture, Mini Engine 0.8+), timers on the host, an achievement |
 | `buzzer` | Who presses first after the signal? | `client.realtime` presses ranked by the engine's `ts`, a 150 ms window, false starts, the host deciding with `setState` |
 | `beurten` | Take turns rolling a die; a 1 loses the turn's points. | A turn order, dice thrown by the host, players who leave, the offline skip after 30 seconds |
 | `leeg` | A bare start: lobby, start, one example move and an end. | The smallest complete loop of action → referee → state |

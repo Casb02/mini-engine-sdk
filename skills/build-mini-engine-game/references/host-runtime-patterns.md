@@ -1,6 +1,6 @@
 # Host-runtime patterns
 
-The scaffold's `assets/room.js` holds the queue (`enqueue`), `run`, the ready/start flow and the player list; `assets/app.js` holds the game. The starter templates are worked examples of these recipes: `quiz` (secrets in `host_state` and `player_states`, timers, own sets, an achievement), `buzzer` (§9) and `beurten` (turns, players leaving, §12). These recipes extend them. Code is plain JavaScript with JSDoc types, checked by the game's `jsconfig.json`.
+The scaffold's `assets/room.js` holds the queue (`enqueue`), `run`, the ready/start flow and the player list; `assets/app.js` holds the game. The starter templates are worked examples of these recipes: `quiz` (secrets in `host_state` and `player_states`, timers, own sets with an optional picture per question (§13), an achievement), `buzzer` (§9) and `beurten` (turns, players leaving, §12). These recipes extend them. Code is plain JavaScript with JSDoc types, checked by the game's `jsconfig.json`.
 
 ## 1. Model state in three layers plus a phase
 
