@@ -88,3 +88,19 @@ test('options: defaults, players, host modes and refusals', () => {
   assert.throws(() => resolveOptions('kwis', { title: 'a\nb' }), /Title/);
   assert.match(String(gameFiles('kwis', { title: '<b>Kwis & co</b>' })['host.html']), /<title>&lt;b&gt;Kwis &amp; co&lt;\/b&gt;<\/title>/);
 });
+
+test('quiz: own question lists may carry a picture per question, shown on every page', () => {
+  for (const language of ['nl', 'en']) {
+    const files = gameFiles('kwis', { template: 'quiz', language });
+    const [kind] = JSON.parse(files['manifest.json']).set_kinds;
+    assert.equal(kind.title, language === 'nl' ? 'Vragenlijst' : 'Question list');
+    const item = kind.schema.properties.questions.items;
+    assert.deepEqual(item.required, ['question']);
+    assert.equal(item.properties.image.type, 'string');
+    assert.equal(item.properties.image.format, 'image');
+    assert.equal(item.properties.image.maxLength, undefined, 'an image field takes no length bounds');
+    const data = JSON.parse(files['data.json']);
+    assert.ok(data.questions.length >= 3 && data.questions.every(question => typeof question.question === 'string' && Object.keys(question).every(key => key in item.properties)));
+    for (const page of ['host.html', 'player.html']) assert.match(files[page], /<img id="picture" class="quiz-picture" alt="" hidden>/);
+  }
+});

@@ -61,7 +61,9 @@ interface SetSchemaNode { title?: string; description?: string }
 export type SetSchema =
   | (SetSchemaNode & { type: 'object'; properties: Record<string, SetSchema>; required?: string[]; additionalProperties: false })
   | (SetSchemaNode & { type: 'array'; items: SetSchema; minItems?: number; maxItems?: number })
-  | (SetSchemaNode & { type: 'string'; minLength?: number; maxLength?: number; enum?: string[] })
+  | (SetSchemaNode & { type: 'string'; minLength?: number; maxLength?: number; enum?: string[]; format?: never })
+  /** An image of the account (`/media/<id>`), or `assets/…` in the game's own `data.json`. Engine 0.8+. */
+  | (SetSchemaNode & { type: 'string'; format: 'image'; minLength?: never; maxLength?: never; enum?: never })
   | (SetSchemaNode & { type: 'integer' | 'number'; minimum?: number; maximum?: number })
   | (SetSchemaNode & { type: 'boolean' });
 /** A kind of set players can save for a game; at most 4 per game. */
@@ -111,6 +113,23 @@ export interface NewSet<Data = Json> {
   data: Data;
 }
 export interface SetFilter { game_id?: string; kind?: string }
+/** An image stored on an account, for image fields in its sets. Engine 0.8+. */
+export interface MediaItem {
+  /** 32 lowercase hex characters. */
+  id: string;
+  /** `/media/<id>`: the value for an image field, and a same-origin `<img src>`. */
+  url: string;
+  /** The server re-encodes every upload: transparent images as PNG, the rest as JPEG. */
+  content_type: 'image/jpeg' | 'image/png';
+  width: number; height: number;
+  /** Stored bytes, at most 1 MiB. */
+  size: number;
+  /** Seconds since the Unix epoch. */
+  created_at: number;
+}
+/** `used_bytes` counts every image of the account; `limit_bytes` is the account quota (250 MiB). */
+export interface MediaUpload { media: MediaItem; used_bytes: number; limit_bytes: number }
+export interface MediaList { media: MediaItem[]; used_bytes: number; limit_bytes: number }
 export interface Account { id: string; username: string; display_name: string; created_at: string | number; email: string | null; email_verified: boolean }
 export interface AccountSession { account: Account; token: string }
 export interface AccountStats {

@@ -1,4 +1,4 @@
-import type { Account, AccountAchievement, AccountSession, AccountStats, CreateRoomOptions, Json, JsonCompatible, Manifest, NewSet, RoomCredentials, RoomInfo, SavedSet, SetFilter, SetSummary, Snapshot } from './types.js';
+import type { Account, AccountAchievement, AccountSession, AccountStats, CreateRoomOptions, Json, JsonCompatible, Manifest, MediaList, MediaUpload, NewSet, RoomCredentials, RoomInfo, SavedSet, SetFilter, SetSummary, Snapshot } from './types.js';
 
 export class MiniEngineError extends Error {
   constructor(message: string, public code = 'client_error', public status?: number) {
@@ -107,6 +107,20 @@ export class ApiClient {
   }
   deleteSet(id: string): Promise<null> {
     return this.call(this.setPath(id), { method: 'DELETE', token: this.accountToken });
+  }
+  /**
+   * Stores an image on the account (PNG, JPEG, WebP or GIF, at most 10 MiB) and returns its `url` for an image field.
+   * The body is the raw bytes; the Content-Type is `contentType`, else the Blob's own type. The server detects the format itself.
+   */
+  uploadMedia(file: Blob | ArrayBuffer | Uint8Array, { contentType }: { contentType?: string } = {}): Promise<MediaUpload> {
+    const type = contentType || (file instanceof Blob ? file.type : '') || 'application/octet-stream';
+    return this.call('/accounts/media', { method: 'POST', token: this.accountToken, headers: { 'Content-Type': type }, body: file as BodyInit });
+  }
+  /** The account's images, newest first, with the bytes used and the quota. */
+  listMedia(): Promise<MediaList> { return this.call('/accounts/media', { token: this.accountToken }); }
+  /** Deletes an image; 409 `media_in_use` while one of the account's sets uses it. */
+  deleteMedia(id: string): Promise<null> {
+    return this.call(`/accounts/media/${encodeURIComponent(id)}`, { method: 'DELETE', token: this.accountToken });
   }
   async logout(): Promise<null> {
     const result = await this.call<null>('/accounts/logout', { method: 'POST', token: this.accountToken });
