@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ApiClient, MiniEngine, createRoom, joinRoom, sessionKey, saveSession, loadSession, removeSession } from '../dist/mini-engine.js';
+import { ApiClient, MiniEngine, createRoom, getGames, joinRoom, sessionKey, saveSession, loadSession, removeSession } from '../dist/mini-engine.js';
 
 class Socket {
   static sockets = [];
@@ -456,6 +456,35 @@ test('media space requests post an optional message as JSON', async () => {
   assert.ok(calls.every(call=>call.headers.get('Authorization')==='Bearer account'));
   assert.deepEqual(JSON.parse(calls[0].body), {message:'Voor mijn quiz'});
   assert.deepEqual(JSON.parse(calls[1].body), {});
+});
+
+test('game lists carry the account session so private games come along', async () => {
+  const calls=[];
+  const fetch=async(url, options)=>{ calls.push({url, ...options}); return {ok:true,status:200,json:async()=>({games:[], featured:[]})}; };
+  const dani=new ApiClient({baseUrl:'https://party.test', accountToken:'a'.repeat(64), fetch});
+  await dani.getGames();
+  await dani.getGame('geheim spel');
+  assert.deepEqual(calls.map(call=>call.url), ['https://party.test/api/v1/games', 'https://party.test/api/v1/games/geheim%20spel']);
+  assert.ok(calls.every(call=>call.headers.get('Authorization')===`Bearer ${'a'.repeat(64)}`));
+  const guest=new ApiClient({baseUrl:'https://party.test', fetch});
+  await guest.getGames();
+  await guest.getGame('zeeslag');
+  assert.equal(calls[2].headers.has('Authorization'), false);
+  assert.equal(calls[3].headers.has('Authorization'), false);
+  globalThis.fetch=fetch;
+  await getGames();
+  assert.equal(calls[4].url, '/api/v1/games');
+  assert.equal(calls[4].headers.has('Authorization'), false);
+});
+
+test('a game in a room asks for its own metadata with the room code', async () => {
+  const calls=[];
+  const fetch=async(url, options)=>{ calls.push({url, ...options}); return {ok:true,status:200,json:async()=>({id:'geheimspel'})}; };
+  const guest=new ApiClient({baseUrl:'https://party.test', fetch});
+  await guest.getGame('geheimspel', { room: ' abcdef ' });
+  await guest.getGame('geheimspel', {});
+  assert.deepEqual(calls.map(call=>call.url), ['https://party.test/api/v1/games/geheimspel?room=ABCDEF', 'https://party.test/api/v1/games/geheimspel']);
+  assert.equal(calls[0].headers.has('Authorization'), false);
 });
 
 test('media space requests keep the wait code', async () => {

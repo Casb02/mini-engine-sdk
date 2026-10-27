@@ -1,4 +1,4 @@
-import { ApiClient, MiniEngine, type Account, type AccountAchievement, type AchievementEarned, type Ack, type Manifest, type MediaItem, type MediaList, type MediaRequest, type MediaUpload, type ActionPayloads, type Json, type JsonCompatible, type Realtime, type RealtimeFrom, type RoomSet, type SavedSet, type SetKind, type SetSchema, type SetSummary, type Snapshot } from '@casb02/mini-engine-sdk';
+import { ApiClient, MiniEngine, type Account, type AccountAchievement, type AchievementEarned, type Ack, type GameInfo, type Manifest, type MediaItem, type MediaList, type MediaRequest, type MediaUpload, type ActionPayloads, type Json, type JsonCompatible, type Realtime, type RealtimeFrom, type RoomSet, type SavedSet, type SetKind, type SetSchema, type SetSummary, type Snapshot } from '@casb02/mini-engine-sdk';
 const api = new ApiClient({ baseUrl: 'http://localhost:3000', accountToken: 'secret' });
 void api.createRoom({ game_id: 'vote', config: { host_mode: 'moderator' } });
 // 0.5.2: the creating device is the TV and has no seat.
@@ -159,6 +159,18 @@ client.on('snapshot', (room: Snapshot) => {
 });
 const partyGame: Manifest = { ...manifest, runtime: 'host', host_modes: ['playing', 'tv'], default_host_mode: 'playing' };
 void partyGame;
+const privateGame: GameInfo = { ...manifest, icon: 'assets/icon.svg', author: 'Cas', private: true, icon_data: 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=' };
+void privateGame;
+void api.getGames().then(({ games }: { games: GameInfo[] }) => games.filter(game => game.private === true).map(game => game.icon_data ?? `/games/${game.id}/${game.icon}`));
+void api.getGame('geheimspel', { room: 'ABCDEF' }).then((game: GameInfo) => game.private);
+const asManifest: Manifest = privateGame;
+void asManifest;
+// @ts-expect-error private is a boolean
+const privateText: GameInfo = { ...manifest, private: 'true' };
+void privateText;
+// @ts-expect-error a manifest cannot make a game private: that is the upload's own private
+const privateManifest: Manifest = { ...manifest, private: true };
+void privateManifest;
 const pictureSchema: SetSchema = { type: 'object', properties: { question: { type: 'string', minLength: 1, maxLength: 240 }, image: { type: 'string', format: 'image', title: 'Afbeelding' } }, required: ['question'], additionalProperties: false };
 void pictureSchema;
 // @ts-expect-error an image field has no length bounds

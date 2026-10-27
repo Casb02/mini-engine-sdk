@@ -91,6 +91,13 @@ export interface Manifest<Settings = Record<string, Json>> {
   /** Uploaded games only: the uploader's display name, set by the server (Mini Engine 0.6.1+). A manifest cannot set it. */
   author?: string;
 }
+/** A game as the engine lists it: the manifest plus what only the server sets. */
+export interface GameInfo<Settings = Record<string, Json>> extends Manifest<Settings> {
+  /** Mini Engine 0.9+: true for a private game, which only its owner and the accounts it invited see and start; anyone with a room code still joins. Set with `me game upload --private` or `me game private`, never in manifest.json: the engine refuses an upload whose manifest says `"private": true` unless the upload itself asks for it. */
+  private?: boolean;
+  /** Mini Engine 0.9+, private games only: the icon as a `data:` URL, because its asset address answers 404 without a session, and an `<img>` sends none. */
+  icon_data?: string;
+}
 export interface RoomCredentials { code: string; token: string; role: Role; player_id?: string | null; display_token?: string }
 export interface CreateRoomOptions {
   game_id: string; max_players?: number; settings?: Record<string, Json>; name?: string; config?: Partial<RoomConfig>;

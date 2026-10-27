@@ -28,7 +28,7 @@ npm install @casb02/mini-engine-sdk
 
 ```sh
 npm install github:Casb02/mini-engine-sdk           # latest main
-npm install github:Casb02/mini-engine-sdk#v0.7.1    # a release tag
+npm install github:Casb02/mini-engine-sdk#v0.7.2    # a release tag
 ```
 
 Requires Node.js 22+. The package ships the ESM client (`dist/`), one bundled declaration file (`types/`), the `create-mini-game` scaffolder (`bin/`) and the AI agent skills (`skills/`).
@@ -45,7 +45,7 @@ me init
 
 `me init` asks for a title, the number of players, how the room is played (*Iedereen doet mee*, TV or both), the look, a starter template and the language, with a default for every question, and then offers to start `me dev`. `me dev` opens the host and two players side by side. You play along on the host page (the default mode); ready the players, start on the host and play on every seat. Saving a file reloads the seats and keeps the room. The generated pages use the SDK at `/sdk/mini-engine.js`, which both `me dev` and Mini Engine serve.
 
-To play it with friends, publish it with a dev key from whoever runs the Mini Engine server you publish to: `me auth`, then `me game upload`. The first upload of a new game is live at once; later versions need `me game upload --activate` (or `me game activate`).
+To play it with friends, publish it with a dev key from whoever runs the Mini Engine server you publish to: `me auth`, then `me game upload`. The first upload of a new game is live at once, for everyone on that server; with `me game upload --private` (Mini Engine 0.9+) you keep it to yourself and the accounts you invite with `me game invite <id> <username>`, while anyone with the room code still joins. Later versions need `me game upload --activate` (or `me game activate`).
 
 Without the CLI, the scaffolder is in this package:
 
@@ -147,13 +147,13 @@ await client.action('roll', { held: [] });
 console.log(await api.stats());
 ```
 
-Accounts are optional. Omitting `accountToken` creates/joins as a guest. Create/join requests use the account bearer; room snapshot and game-data requests use their explicit room bearer. Register/login return `{account,token}` without storing credentials automatically. Set `api.accountToken` after login/register and choose your own persistence. Logout clears it after server success.
+Accounts are optional. Omitting `accountToken` creates/joins as a guest. Create/join requests use the account bearer, and so do `getGames()` and `getGame(id)` since SDK 0.7.2: with it, Mini Engine 0.9+ also returns the private games that account owns or was invited to (`private: true`, with the icon as a `data:` URL in `icon_data`, typed as `GameInfo`); an older engine ignores the header. Inside a room, `getGame(id, {room: code})` answers for anyone with the release that room plays, also for a private game. Room snapshot and game-data requests use their explicit room bearer. Register/login return `{account,token}` without storing credentials automatically. Set `api.accountToken` after login/register and choose your own persistence. Logout clears it after server success.
 
-`ApiClient` methods: `getGames()`, `getGame(id)`, `createRoom(options)`, `joinRoom(code,name)`, `getRoom(code,roomToken)`, `roomInfo(code)`, `gameData(code,hostToken)`, `displayToken(code,hostToken)`, `accountConfig()`, `register({username,password,display_name,email},{turnstileToken?}?)`, `verifyEmail(token)`, `setEmail(email,{turnstileToken?}?)`, `login({username,password})`, `me()`, `stats()`, `achievements(accountToken?)`, `listSets({game_id?,kind?}?)`, `getSet(id)`, `createSet({game_id,kind,title,data})`, `updateSet(id,{title,data})`, `deleteSet(id)`, `uploadMedia(file,{contentType?}?)`, `listMedia()`, `deleteMedia(id)`, `requestMediaSpace({message?}?)`, `logout()`.
+`ApiClient` methods: `getGames()`, `getGame(id,{room?}?)`, `createRoom(options)`, `joinRoom(code,name)`, `getRoom(code,roomToken)`, `roomInfo(code)`, `gameData(code,hostToken)`, `displayToken(code,hostToken)`, `accountConfig()`, `register({username,password,display_name,email},{turnstileToken?}?)`, `verifyEmail(token)`, `setEmail(email,{turnstileToken?}?)`, `login({username,password})`, `me()`, `stats()`, `achievements(accountToken?)`, `listSets({game_id?,kind?}?)`, `getSet(id)`, `createSet({game_id,kind,title,data})`, `updateSet(id,{title,data})`, `deleteSet(id)`, `uploadMedia(file,{contentType?}?)`, `listMedia()`, `deleteMedia(id)`, `requestMediaSpace({message?}?)`, `logout()`.
 
 `achievements` needs Mini Engine 0.5 (see [Achievements](#achievements)); so do the set methods and `createRoom({set_id})` (see [Sets](#sets)). The media methods need Mini Engine 0.8, `requestMediaSpace` 0.8.1 (see [Images in sets](#images-in-sets)). An older engine answers the new routes with 404 and refuses `set_id` with 400. When the server asks for a robot check, `accountConfig()` returns the Cloudflare Turnstile site key; pass the widget's token to `register` or `setEmail` as `{turnstileToken}` and the SDK sends it in the `X-Turnstile-Token` header (see the [Accounts](https://docs.miniengine.nl/api/accounts.html#robotcheck) API page). Since engine v0.4 registration needs an email address; the engine mails a confirmation link (`?verify=<token>`), which `verifyEmail` confirms while signed in to that account (set `accountToken` first). `Account` includes `email` and `email_verified`. `displayToken` rotates the display credential and returns `{token}`; only share it through the room launcher's URL fragment.
 
-The original same-origin `http(path,{token,...fetchOptions})`, `getGames()`, `createRoom(options)` and `joinRoom(code,name)` exports remain available. `getGames()` returns `{games}`. `ApiClient({baseUrl,accountToken,fetch})` supports a separate server and custom fetch implementation; cross-origin browser requests require the server's CORS support.
+The original same-origin `http(path,{token,...fetchOptions})`, `getGames()`, `createRoom(options)` and `joinRoom(code,name)` exports remain available. `getGames()` returns `{games}` and never sends an account bearer, so it lists public games only. `ApiClient({baseUrl,accountToken,fetch})` supports a separate server and custom fetch implementation; cross-origin browser requests require the server's CORS support.
 
 Game metadata can declare `supports_late_join: false` when its rules cannot admit players after start. The optional capability defaults to true for legacy custom packages. Built-in Jeopardy disables late joining; Common Dice supports it. A room can enable `allow_late_join` only when its game supports the capability.
 
@@ -395,7 +395,7 @@ const data = { questions: [{ question: 'Wie is dit?', image: media.url }] };
 
 ## Releasing
 
-Bump `version` in `package.json`, merge, then tag: `git tag v0.7.1 && git push origin v0.7.1`. The [publish workflow](.github/workflows/publish.yml) runs the full check and publishes the tag to GitHub Packages with the repository's own `GITHUB_TOKEN`; the tag must match the package version.
+Bump `version` in `package.json`, merge, then tag: `git tag v0.7.2 && git push origin v0.7.2`. The [publish workflow](.github/workflows/publish.yml) runs the full check and publishes the tag to GitHub Packages with the repository's own `GITHUB_TOKEN`; the tag must match the package version.
 
 ## Sessions and distribution
 
