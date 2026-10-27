@@ -89,6 +89,15 @@ test('options: defaults, players, host modes and refusals', () => {
   assert.match(String(gameFiles('kwis', { title: '<b>Kwis & co</b>' })['host.html']), /<title>&lt;b&gt;Kwis &amp; co&lt;\/b&gt;<\/title>/);
 });
 
+test('the README offers a private first upload before going live for everyone', () => {
+  const nl = String(gameFiles('kwis', { language: 'nl' })['README.md']);
+  assert.match(nl, /De eerste upload van een nieuwe game staat meteen live, voor iedereen op die server\./);
+  assert.match(nl, /`me game upload --private` en nodig ze uit met `me game invite kwis <gebruikersnaam>` \(vanaf Mini Engine 0\.9\)/);
+  const en = String(gameFiles('kwis', { language: 'en' })['README.md']);
+  assert.match(en, /The first upload of a new game is live at once, for everyone on that server\./);
+  assert.match(en, /`me game upload --private` and invite them with `me game invite kwis <username>` \(Mini Engine 0\.9\+\)/);
+});
+
 test('quiz: own question lists may carry a picture per question, shown on every page', () => {
   for (const language of ['nl', 'en']) {
     const files = gameFiles('kwis', { template: 'quiz', language });

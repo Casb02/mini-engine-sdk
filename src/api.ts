@@ -1,4 +1,4 @@
-import type { Account, AccountAchievement, AccountSession, AccountStats, CreateRoomOptions, Json, JsonCompatible, Manifest, MediaList, MediaRequest, MediaUpload, NewSet, RoomCredentials, RoomInfo, SavedSet, SetFilter, SetSummary, Snapshot } from './types.js';
+import type { Account, AccountAchievement, AccountSession, AccountStats, CreateRoomOptions, GameInfo, Json, JsonCompatible, MediaList, MediaRequest, MediaUpload, NewSet, RoomCredentials, RoomInfo, SavedSet, SetFilter, SetSummary, Snapshot } from './types.js';
 
 export class MiniEngineError extends Error {
   constructor(message: string, public code = 'client_error', public status?: number) {
@@ -41,8 +41,16 @@ export class ApiClient {
   private call<T>(path: string, options: HttpOptions = {}): Promise<T> {
     return http<T>(endpoint(this.baseUrl, `/api/v1${path}`), options, this.fetcher ?? globalThis.fetch);
   }
-  getGames(): Promise<{ games: Manifest[] }> { return this.call('/games'); }
-  getGame(id: string): Promise<Manifest> { return this.call(`/games/${encodeURIComponent(id)}`); }
+  /** Playable games; with an `accountToken` also the private games of that account and the ones it was invited to (Mini Engine 0.9+). */
+  getGames(): Promise<{ games: GameInfo[] }> { return this.call('/games', { token: this.accountToken }); }
+  /**
+   * One game; a private game answers 404 `game_not_found` unless `accountToken` is its owner or an invitee.
+   * With `room`, the code of a live room of this game, it answers for anyone with the release that room plays, also for a private game (Mini Engine 0.9+): use that inside a room.
+   */
+  getGame(id: string, { room }: { room?: string } = {}): Promise<GameInfo> {
+    const query = room ? `?room=${encodeURIComponent(normalizeCode(room))}` : '';
+    return this.call(`/games/${encodeURIComponent(id)}${query}`, { token: this.accountToken });
+  }
   createRoom(options: CreateRoomOptions): Promise<RoomCredentials> {
     return this.call('/rooms', { method: 'POST', token: this.accountToken, body: JSON.stringify(options) });
   }
@@ -139,6 +147,6 @@ export class ApiClient {
 }
 
 /** Legacy helpers use the current origin; use ApiClient for a separate server or account. */
-export const getGames = (): Promise<{ games: Manifest[] }> => new ApiClient().getGames();
+export const getGames = (): Promise<{ games: GameInfo[] }> => new ApiClient().getGames();
 export const createRoom = (options: CreateRoomOptions): Promise<RoomCredentials> => new ApiClient().createRoom(options);
 export const joinRoom = (code: string, name: string): Promise<RoomCredentials> => new ApiClient().joinRoom(code, name);
